@@ -95,6 +95,16 @@ export function fmtK(n: number | null | undefined): string {
   return `${Math.round(n)}`
 }
 
+/** Compact large number: "1.5M", "708k", "5.4k", "420". */
+export function fmtCompact(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—'
+  const a = Math.abs(n)
+  if (a >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (a >= 1e5) return `${Math.round(n / 1e3)}k`
+  if (a >= 1e3) return `${(n / 1e3).toFixed(1)}k`
+  return `${Math.round(n)}`
+}
+
 /** Team format like "8v8" / "3v3v3" from ally-team sizes. */
 export function fmtTeamFormat(sizes: number[]): string {
   if (sizes.length === 0) return '—'

@@ -809,6 +809,34 @@ body.dragging-divider * {
   font: 400 10px var(--sans);
   color: var(--text-faint);
 }
+.stat-teams {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat-team-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.stat-team-name {
+  font: 600 10px var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.stat-team-val {
+  font: 700 15px var(--mono);
+  color: var(--text-primary);
+}
+.stat-team-win .stat-team-name {
+  color: var(--accent);
+}
+.stat-team-win .stat-team-val {
+  color: var(--accent);
+}
 .stat-card-map {
   grid-column: 1 / -1;
 }

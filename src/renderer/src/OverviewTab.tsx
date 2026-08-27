@@ -1,5 +1,5 @@
 import type { AllyTeamMeta, PlayerMeta, ReplayMeta } from '../../shared/types'
-import { fmtK, flagEmoji } from './format'
+import { fmtCompact, fmtK, flagEmoji } from './format'
 import { buildPips, buildRosters, teamAvgOs, type RosterEntry } from './players'
 import { useMapImage } from './useMapImage'
 import { useMapInfo } from './useMapInfo'
@@ -83,7 +83,6 @@ function MapPanel({ meta, slots }: { meta: ReplayMeta; slots: number }): JSX.Ele
 }
 
 function StatGrid({ meta }: { meta: ReplayMeta }): JSX.Element {
-  const s = meta.stats
   const winnerIdx = meta.allyTeams.findIndex((t) => t.won === true)
   const decided = meta.allyTeams.some((t) => t.won != null)
   const dim = meta.map.width && meta.map.height ? `${meta.map.width} × ${meta.map.height}` : null
@@ -103,30 +102,9 @@ function StatGrid({ meta }: { meta: ReplayMeta }): JSX.Element {
         }
         rule
       />
-      <StatCard
-        label="Metal produced"
-        value={fmtK(s?.metalProduced)}
-        sub={s?.metalProduced == null ? 'no end-game stats in file' : 'both teams'}
-        rule
-      />
-      <StatCard
-        label="Units lost"
-        value={s?.unitsLost != null ? s.unitsLost.toLocaleString() : '—'}
-        sub={s?.unitsLost == null ? 'no end-game stats in file' : 'both teams'}
-        rule
-      />
-      <StatCard
-        label="Units killed"
-        value={s?.unitsKilled != null ? s.unitsKilled.toLocaleString() : '—'}
-        sub={
-          s?.damageDealt != null
-            ? `${fmtK(s.damageDealt)} damage dealt`
-            : s?.unitsKilled == null
-              ? 'no end-game stats in file'
-              : 'both teams'
-        }
-        rule
-      />
+      <TeamStatCard label="Metal produced" meta={meta} pick={(s) => s.metalProduced} />
+      <TeamStatCard label="Energy produced" meta={meta} pick={(s) => s.energyProduced} />
+      <TeamStatCard label="Damage done" meta={meta} pick={(s) => s.damageDealt} />
       <div className="stat-card stat-card-map">
         <div className="stat-card-row">
           <span className="stat-label">Map</span>
@@ -154,6 +132,48 @@ function StatCard({
       <div className="stat-label">{label}</div>
       <div className="stat-value">{value}</div>
       {sub && <div className="stat-sub">{sub}</div>}
+    </div>
+  )
+}
+
+/** A stat card that breaks the figure down per ally-team. */
+function TeamStatCard({
+  label,
+  meta,
+  pick
+}: {
+  label: string
+  meta: ReplayMeta
+  pick: (s: NonNullable<PlayerMeta['stats']>) => number
+}): JSX.Element {
+  const rows = meta.allyTeams.map((team, i) => {
+    const rated = team.players.map((p) => p.stats).filter(Boolean) as NonNullable<
+      PlayerMeta['stats']
+    >[]
+    return {
+      ordinal: i,
+      won: team.won === true,
+      value: rated.length ? rated.reduce((a, s) => a + pick(s), 0) : null
+    }
+  })
+  const anyValue = rows.some((r) => r.value != null)
+
+  return (
+    <div className="stat-card stat-card-rule">
+      <div className="stat-label">{label}</div>
+      {anyValue ? (
+        <div className="stat-teams">
+          {rows.map((r) => (
+            <div key={r.ordinal} className={`stat-team-row ${r.won ? 'stat-team-win' : ''}`}>
+              <span className="stat-team-name">Team {r.ordinal + 1}</span>
+              <span className="stat-team-val">{r.value == null ? '—' : fmtCompact(r.value)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="stat-value">—</div>
+      )}
+      {!anyValue && <div className="stat-sub">no end-game stats in file</div>}
     </div>
   )
 }
