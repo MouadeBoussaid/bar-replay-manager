@@ -154,6 +154,11 @@ export interface Api {
   trashReplay(filePath: string): Promise<void>
   /** Engine build tags installed alongside the detected BAR client (may be empty). */
   getInstalledEngines(): Promise<string[]>
+  /**
+   * Minimap texture for a map (by script name) as a `data:` URL, fetched from the
+   * bar-rts map API and cached on disk. Null when unknown or offline.
+   */
+  getMapImage(mapName: string, size: 'thumb' | 'mq'): Promise<string | null>
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void

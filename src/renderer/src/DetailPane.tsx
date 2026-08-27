@@ -4,6 +4,7 @@ import { DetailsTab } from './DetailsTab'
 import { OverviewTab } from './OverviewTab'
 import { StatsTab } from './StatsTab'
 import { fmtClock, fmtHeroDateTime, fmtTeamFormat } from './format'
+import { useMapImage } from './useMapImage'
 
 interface Props {
   meta: ReplayMeta | null
@@ -46,15 +47,16 @@ export function DetailPane(props: Props): JSX.Element {
   const [tab, setTab] = useState<TabId>('overview')
   useEffect(() => setTab('overview'), [listItem?.filePath])
 
-  if (!listItem) {
+  const mapName = meta?.map.name ?? listItem?.mapName ?? null
+  const heroPhoto = useMapImage(mapName, 'mq')
+
+  if (!listItem || !mapName) {
     return (
       <section className="detail-pane">
         <div className="detail-empty">Select a replay</div>
       </section>
     )
   }
-
-  const mapName = meta?.map.name ?? listItem.mapName
   const { title: mapTitle, version: mapVersion } = splitMapVersion(mapName)
   const teamFormat = meta
     ? fmtTeamFormat(meta.allyTeams.map((t) => t.players.length))
@@ -65,6 +67,16 @@ export function DetailPane(props: Props): JSX.Element {
   return (
     <section className="detail-pane">
       <div className="hero">
+        {heroPhoto && (
+          <img
+            className="hero-photo"
+            src={heroPhoto}
+            alt=""
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        )}
         <div className="hero-scrim" />
         <button
           className="play-btn no-drag"

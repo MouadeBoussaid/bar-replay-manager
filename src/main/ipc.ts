@@ -5,6 +5,7 @@ import type { ClearPreview, ClearResult, Settings } from '../shared/types'
 import { resolveFavouriteKey } from './favourites'
 import { startWatch, stopWatch } from './folder-watcher'
 import { listInstalledEngines, playReplay } from './launch'
+import { getMapImage, type MapImageSize } from './map-images'
 import { detectDefaultFolder } from './paths'
 import { getReplayDetail } from './replay-parser'
 import { listReplays } from './replay-scanner'
@@ -39,6 +40,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('replay:play', (_e, filePath: string) => playReplay(filePath))
   ipcMain.handle('engines:list', () => listInstalledEngines())
+  ipcMain.handle('map:image', (_e, name: string, size: MapImageSize) =>
+    getMapImage(name, size)
+  )
 
   ipcMain.handle('replay:trash', async (_e, filePath: string) => {
     await shell.trashItem(filePath)

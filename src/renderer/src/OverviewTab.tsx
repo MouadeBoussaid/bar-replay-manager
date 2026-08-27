@@ -1,6 +1,7 @@
 import type { AllyTeamMeta, PlayerMeta, ReplayMeta } from '../../shared/types'
 import { fmtK, flagEmoji } from './format'
 import { buildRosters, pipPosition, teamAvgOs, type RosterEntry } from './players'
+import { useMapImage } from './useMapImage'
 
 interface Props {
   meta: ReplayMeta
@@ -37,11 +38,23 @@ function MapPanel({
 }): JSX.Element {
   const zoneCount = Math.max(2, meta.allyTeams.length)
   const twoZone = meta.allyTeams.length === 2
+  const photo = useMapImage(meta.map.name, 'thumb')
 
   return (
     <div className="map-panel">
       <div className="map-frame">
-        <div className={`map-image ${twoZone ? 'map-zones-2' : ''}`} />
+        <div className="map-base" />
+        {photo && (
+          <img
+            className="map-photo"
+            src={photo}
+            alt=""
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        )}
+        {twoZone && <div className="map-tint" />}
         {twoZone && (
           <>
             <span className="zone-caption zone-caption-top">NORTH · TEAM 1</span>
