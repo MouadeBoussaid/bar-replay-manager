@@ -12,6 +12,7 @@ interface Props {
   listItem: ReplayListItem | null
   settings: Settings | null
   launchError: string | null
+  playState: 'idle' | 'launching' | 'ok'
   onPlay: (filePath: string) => void
   onDismissLaunchError: () => void
   onToggleSetting: (patch: Partial<Settings>) => void
@@ -34,6 +35,7 @@ export function DetailPane(props: Props): JSX.Element {
     listItem,
     settings,
     launchError,
+    playState,
     onPlay,
     onDismissLaunchError,
     onToggleSetting,
@@ -76,12 +78,25 @@ export function DetailPane(props: Props): JSX.Element {
         )}
         <div className="hero-scrim" />
         <button
-          className="play-btn no-drag"
-          title="Launch this replay in Beyond All Reason"
+          className={`play-btn no-drag play-btn-${playState} ${
+            launchError ? 'play-btn-error' : ''
+          }`}
+          disabled={playState === 'launching'}
+          title={
+            playState === 'launching'
+              ? 'Starting Beyond All Reason…'
+              : 'Launch this replay in Beyond All Reason'
+          }
           onClick={() => onPlay(listItem.filePath)}
         >
           <span className="play-glyph" aria-hidden />
-          PLAY REPLAY
+          {playState === 'launching'
+            ? 'LAUNCHING…'
+            : playState === 'ok'
+              ? 'LAUNCHED ✓'
+              : launchError
+                ? 'RETRY'
+                : 'PLAY REPLAY'}
         </button>
 
         <div className="hero-caption">

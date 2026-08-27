@@ -575,9 +575,29 @@ body.dragging-divider * {
   background: var(--accent-hover);
 }
 .play-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  cursor: default;
   box-shadow: none;
+}
+.play-btn-launching {
+  background: var(--accent);
+  animation: play-pulse 1s ease-in-out infinite;
+}
+@keyframes play-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.play-btn-ok {
+  background: #63e0a8;
+  box-shadow: 0 4px 18px rgba(99, 224, 168, 0.3);
+}
+.play-btn-error {
+  background: #ff8b7d;
+  color: #2a0f0c;
+  box-shadow: 0 4px 18px rgba(226, 80, 70, 0.32);
+}
+.play-btn-error .play-glyph {
+  border-color: transparent transparent transparent #2a0f0c;
 }
 .play-glyph {
   width: 0;

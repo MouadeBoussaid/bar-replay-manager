@@ -26,6 +26,7 @@ export function App(): JSX.Element {
   const [pendingDelete, setPendingDelete] = useState<ReplayListItem | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [launchError, setLaunchError] = useState<string | null>(null)
+  const [playState, setPlayState] = useState<'idle' | 'launching' | 'ok'>('idle')
 
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('newest')
@@ -105,6 +106,7 @@ export function App(): JSX.Element {
     setDetailLoading(true)
     setDetail(null)
     setLaunchError(null)
+    setPlayState('idle')
     window.api
       .getReplayDetail(selected)
       .then((d) => !cancelled && setDetail(d))
@@ -141,9 +143,22 @@ export function App(): JSX.Element {
   }
 
   const play = async (filePath: string): Promise<void> => {
+    if (playState === 'launching') return
     setLaunchError(null)
-    const res = await window.api.playReplay(filePath)
-    if (!res.ok) setLaunchError(res.error ?? 'The BAR client could not be launched.')
+    setPlayState('launching')
+    try {
+      const res = await window.api.playReplay(filePath)
+      if (res.ok) {
+        setPlayState('ok')
+        window.setTimeout(() => setPlayState((s) => (s === 'ok' ? 'idle' : s)), 4000)
+      } else {
+        setPlayState('idle')
+        setLaunchError(res.error ?? 'Beyond All Reason could not be launched.')
+      }
+    } catch (e) {
+      setPlayState('idle')
+      setLaunchError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const confirmDeleteOne = async (): Promise<void> => {
@@ -291,6 +306,7 @@ export function App(): JSX.Element {
           listItem={selectedItem}
           settings={settings}
           launchError={launchError}
+          playState={playState}
           onPlay={(fp) => void play(fp)}
           onDismissLaunchError={() => setLaunchError(null)}
           onToggleSetting={(patch) => void patchSettings(patch)}
