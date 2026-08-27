@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { readdirSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { ClearPreview, ClearResult, Settings } from '../shared/types'
@@ -43,6 +43,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     getMapImage(name, size)
   )
   ipcMain.handle('map:info', (_e, name: string) => getMapInfo(name))
+  ipcMain.handle('clipboard:write', (_e, text: string) => clipboard.writeText(text))
 
   ipcMain.handle('replay:trash', async (_e, filePath: string) => {
     await shell.trashItem(filePath)

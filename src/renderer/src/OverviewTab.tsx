@@ -4,6 +4,7 @@ import { fmtCompact, fmtK, flagEmoji } from './format'
 import {
   buildPips,
   buildRosters,
+  damageBarColor,
   teamAvgOs,
   teamColorNames,
   teamLabel,
@@ -146,6 +147,7 @@ function StatGrid({ meta, colors }: { meta: ReplayMeta; colors: TeamColor[] }): 
               : 'game did not finish'
         }
         rule
+        tone={winnerIdx >= 0 ? (colors[winnerIdx] ?? null) : null}
       />
       <TeamStatCard label="Metal produced" meta={meta} colors={colors} pick={(s) => s.metalProduced} />
       <TeamStatCard label="Energy produced" meta={meta} colors={colors} pick={(s) => s.energyProduced} />
@@ -165,15 +167,21 @@ function StatCard({
   label,
   value,
   sub,
-  rule
+  rule,
+  tone
 }: {
   label: string
   value: string
   sub?: string
   rule?: boolean
+  tone?: TeamColor
 }): JSX.Element {
   return (
-    <div className={`stat-card ${rule ? 'stat-card-rule' : ''}`}>
+    <div
+      className={`stat-card ${rule ? 'stat-card-rule' : ''} ${
+        tone ? `stat-card-${tone}` : ''
+      }`}
+    >
       <div className="stat-label">{label}</div>
       <div className="stat-value">{value}</div>
       {sub && <div className="stat-sub">{sub}</div>}
@@ -255,20 +263,14 @@ function TeamRoster({
         {avg != null && <span className="roster-avg">avg {avg.toFixed(2)} OS</span>}
       </div>
       {entries.map((entry, i) => (
-        <PlayerLine key={i} entry={entry} winning={won} />
+        <PlayerLine key={i} entry={entry} />
       ))}
     </div>
   )
 }
 
-function PlayerLine({
-  entry,
-  winning
-}: {
-  entry: RosterEntry
-  winning: boolean
-}): JSX.Element {
-  const { player, color, valueShare } = entry
+function PlayerLine({ entry }: { entry: RosterEntry }): JSX.Element {
+  const { player, color, valueShare, topDamage } = entry
   const st = player.stats
   return (
     <div className="player-line" style={{ borderLeftColor: color }}>
@@ -291,8 +293,11 @@ function PlayerLine({
       <div className="player-bottom">
         <span className="value-track">
           <span
-            className={`value-fill ${winning ? 'value-fill-win' : ''}`}
-            style={{ width: `${Math.round(valueShare * 100)}%` }}
+            className="value-fill"
+            style={{
+              width: `${Math.round(valueShare * 100)}%`,
+              background: damageBarColor(valueShare, topDamage)
+            }}
           />
         </span>
         <span className="player-metal">{st ? `${fmtK(st.damageDealt)} dmg` : '—'}</span>

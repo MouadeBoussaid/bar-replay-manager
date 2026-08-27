@@ -12,6 +12,7 @@ const api: Api = {
   trashReplay: (filePath) => ipcRenderer.invoke('replay:trash', filePath),
   getMapImage: (name, size) => ipcRenderer.invoke('map:image', name, size),
   getMapInfo: (name) => ipcRenderer.invoke('map:info', name),
+  copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   windowMinimize: () => ipcRenderer.send('window:minimize'),
   windowToggleMaximize: () => ipcRenderer.send('window:toggleMaximize'),
   windowClose: () => ipcRenderer.send('window:close'),

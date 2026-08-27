@@ -75,6 +75,8 @@ export interface RosterEntry {
   color: string
   /** Fraction 0..1 of the highest damage-dealt figure in the whole match (for the bar). */
   valueShare: number
+  /** This player dealt the most damage in the match (and dealt some). */
+  topDamage: boolean
 }
 
 /**
@@ -91,12 +93,25 @@ export function buildRosters(meta: ReplayMeta): RosterEntry[][] {
     }
 
   return meta.allyTeams.map((team) =>
-    team.players.map((player) => ({
-      player,
-      color: playerColor(player, gi++),
-      valueShare: maxDmg > 0 ? (player.stats?.damageDealt ?? 0) / maxDmg : 0
-    }))
+    team.players.map((player) => {
+      const dmg = player.stats?.damageDealt ?? 0
+      return {
+        player,
+        color: playerColor(player, gi++),
+        valueShare: maxDmg > 0 ? dmg / maxDmg : 0,
+        topDamage: maxDmg > 0 && dmg === maxDmg
+      }
+    })
   )
+}
+
+/** Bar colour for a damage share: light→dark red as it grows, purple for the top. */
+export function damageBarColor(share: number, top: boolean): string {
+  if (top) return '#a855f7'
+  const t = Math.max(0, Math.min(1, share))
+  const light = Math.round(60 - t * 27) // 60% → 33%
+  const sat = Math.round(70 + t * 12) // 70% → 82%
+  return `hsl(4, ${sat}%, ${light}%)`
 }
 
 type Box = { left: number; top: number; right: number; bottom: number }

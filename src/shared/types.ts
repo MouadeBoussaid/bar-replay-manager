@@ -167,6 +167,8 @@ export interface Api {
   getMapImage(mapName: string, size: 'thumb' | 'mq'): Promise<string | null>
   /** Map dimensions + canonical start spots (world elmos), for plotting pips. */
   getMapInfo(mapName: string): Promise<MapInfo | null>
+  /** Put text on the system clipboard. */
+  copyText(text: string): Promise<void>
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void
