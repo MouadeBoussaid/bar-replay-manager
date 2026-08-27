@@ -1,34 +1,69 @@
-import type { AllyTeamMeta, PlayerMeta, ReplayMeta } from '../../shared/types'
+import type { AllyTeamMeta, PlayerMeta, ReplayListItem, ReplayMeta } from '../../shared/types'
+import { FavouriteEditor } from './FavouriteEditor'
 import { fmtCompact, fmtK, flagEmoji } from './format'
-import { buildPips, buildRosters, teamAvgOs, type RosterEntry } from './players'
+import {
+  buildPips,
+  buildRosters,
+  teamAvgOs,
+  teamColorNames,
+  teamLabel,
+  type RosterEntry,
+  type TeamColor
+} from './players'
 import { useMapImage } from './useMapImage'
 import { useMapInfo } from './useMapInfo'
 
 interface Props {
   meta: ReplayMeta
+  listItem: ReplayListItem
+  onSaveFavourite: (data: { note: string; tags: string[] }) => void
 }
 
-export function OverviewTab({ meta }: Props): JSX.Element {
+export function OverviewTab({ meta, listItem, onSaveFavourite }: Props): JSX.Element {
   const rosters = buildRosters(meta)
+  const colors = teamColorNames(meta)
   const slots = meta.allyTeams.reduce((n, t) => n + t.players.length, 0)
 
   return (
     <div className="overview">
       <div className="overview-top">
-        <MapPanel meta={meta} slots={slots} />
-        <StatGrid meta={meta} />
+        <MapPanel meta={meta} colors={colors} slots={slots} />
+        <StatGrid meta={meta} colors={colors} />
       </div>
 
       <div className="rosters">
         {meta.allyTeams.map((team, i) => (
-          <TeamRoster key={team.id} team={team} ordinal={i} entries={rosters[i] ?? []} />
+          <TeamRoster
+            key={team.id}
+            team={team}
+            ordinal={i}
+            color={colors[i] ?? null}
+            entries={rosters[i] ?? []}
+          />
         ))}
       </div>
+
+      {listItem.isFavourite && (
+        <FavouriteEditor
+          resetKey={meta.gameId ?? meta.filePath}
+          note={listItem.note}
+          tags={listItem.tags}
+          onSave={onSaveFavourite}
+        />
+      )}
     </div>
   )
 }
 
-function MapPanel({ meta, slots }: { meta: ReplayMeta; slots: number }): JSX.Element {
+function MapPanel({
+  meta,
+  colors,
+  slots
+}: {
+  meta: ReplayMeta
+  colors: TeamColor[]
+  slots: number
+}): JSX.Element {
   const twoZone = meta.allyTeams.length === 2
   const photo = useMapImage(meta.map.name, 'thumb')
   const mapInfo = useMapInfo(meta.map.name)
@@ -52,8 +87,12 @@ function MapPanel({ meta, slots }: { meta: ReplayMeta; slots: number }): JSX.Ele
         {twoZone && <div className="map-tint" />}
         {twoZone && (
           <>
-            <span className="zone-caption zone-caption-top">NORTH · TEAM 1</span>
-            <span className="zone-caption zone-caption-bottom">SOUTH · TEAM 2</span>
+            <span className="zone-caption zone-caption-top">
+              NORTH · {teamLabel(0, colors[0] ?? null).toUpperCase()}
+            </span>
+            <span className="zone-caption zone-caption-bottom">
+              SOUTH · {teamLabel(1, colors[1] ?? null).toUpperCase()}
+            </span>
           </>
         )}
         {pipRows.map((row, ti) =>
@@ -82,7 +121,7 @@ function MapPanel({ meta, slots }: { meta: ReplayMeta; slots: number }): JSX.Ele
   )
 }
 
-function StatGrid({ meta }: { meta: ReplayMeta }): JSX.Element {
+function StatGrid({ meta, colors }: { meta: ReplayMeta; colors: TeamColor[] }): JSX.Element {
   const winnerIdx = meta.allyTeams.findIndex((t) => t.won === true)
   const decided = meta.allyTeams.some((t) => t.won != null)
   const dim = meta.map.width && meta.map.height ? `${meta.map.width} × ${meta.map.height}` : null
@@ -92,7 +131,13 @@ function StatGrid({ meta }: { meta: ReplayMeta }): JSX.Element {
     <div className="stat-grid">
       <StatCard
         label="Winner"
-        value={winnerIdx >= 0 ? `Team ${winnerIdx + 1}` : decided ? 'Draw' : '—'}
+        value={
+          winnerIdx >= 0
+            ? teamLabel(winnerIdx, colors[winnerIdx] ?? null)
+            : decided
+              ? 'Draw'
+              : '—'
+        }
         sub={
           winnerIdx >= 0
             ? `${teamFmt} · ${meta.endedNormally ? 'game finished' : 'host ended early'}`
@@ -102,9 +147,9 @@ function StatGrid({ meta }: { meta: ReplayMeta }): JSX.Element {
         }
         rule
       />
-      <TeamStatCard label="Metal produced" meta={meta} pick={(s) => s.metalProduced} />
-      <TeamStatCard label="Energy produced" meta={meta} pick={(s) => s.energyProduced} />
-      <TeamStatCard label="Damage done" meta={meta} pick={(s) => s.damageDealt} />
+      <TeamStatCard label="Metal produced" meta={meta} colors={colors} pick={(s) => s.metalProduced} />
+      <TeamStatCard label="Energy produced" meta={meta} colors={colors} pick={(s) => s.energyProduced} />
+      <TeamStatCard label="Damage done" meta={meta} colors={colors} pick={(s) => s.damageDealt} />
       <div className="stat-card stat-card-map">
         <div className="stat-card-row">
           <span className="stat-label">Map</span>
@@ -140,18 +185,21 @@ function StatCard({
 function TeamStatCard({
   label,
   meta,
+  colors,
   pick
 }: {
   label: string
   meta: ReplayMeta
+  colors: TeamColor[]
   pick: (s: NonNullable<PlayerMeta['stats']>) => number
 }): JSX.Element {
   const rows = meta.allyTeams.map((team, i) => {
-    const rated = team.players.map((p) => p.stats).filter(Boolean) as NonNullable<
-      PlayerMeta['stats']
-    >[]
+    const rated = team.players
+      .map((p) => p.stats)
+      .filter(Boolean) as NonNullable<PlayerMeta['stats']>[]
     return {
       ordinal: i,
+      color: colors[i] ?? null,
       won: team.won === true,
       value: rated.length ? rated.reduce((a, s) => a + pick(s), 0) : null
     }
@@ -164,8 +212,13 @@ function TeamStatCard({
       {anyValue ? (
         <div className="stat-teams">
           {rows.map((r) => (
-            <div key={r.ordinal} className={`stat-team-row ${r.won ? 'stat-team-win' : ''}`}>
-              <span className="stat-team-name">Team {r.ordinal + 1}</span>
+            <div
+              key={r.ordinal}
+              className={`stat-team-row team-${r.color ?? 'none'} ${r.won ? 'stat-team-win' : ''}`}
+            >
+              <span className="stat-team-name">
+                {teamLabel(r.ordinal, r.color).toUpperCase()}
+              </span>
               <span className="stat-team-val">{r.value == null ? '—' : fmtCompact(r.value)}</span>
             </div>
           ))}
@@ -181,10 +234,12 @@ function TeamStatCard({
 function TeamRoster({
   team,
   ordinal,
+  color,
   entries
 }: {
   team: AllyTeamMeta
   ordinal: number
+  color: TeamColor
   entries: RosterEntry[]
 }): JSX.Element {
   const avg = teamAvgOs(team)
@@ -193,8 +248,8 @@ function TeamRoster({
 
   return (
     <div className="roster">
-      <div className="roster-head">
-        <span className="roster-title">TEAM {ordinal + 1}</span>
+      <div className={`roster-head team-${color ?? 'none'}`}>
+        <span className="roster-title">{teamLabel(ordinal, color).toUpperCase()}</span>
         {won && <span className="result-badge result-win">VICTORY</span>}
         {lost && <span className="result-badge result-loss">DEFEAT</span>}
         {avg != null && <span className="roster-avg">avg {avg.toFixed(2)} OS</span>}

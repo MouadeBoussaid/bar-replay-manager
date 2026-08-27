@@ -29,6 +29,11 @@
   --faction-armada: #4f9be0;
   --bar-loser: #8d8f96;
 
+  --team-blue: #6fb2e8;
+  --team-red: #ec7d72;
+  --team-blue-bg: rgba(79, 155, 224, 0.32);
+  --team-red-bg: rgba(226, 86, 75, 0.32);
+
   --text-primary: #f2f2f2;
   --text-body: #e9e9e9;
   --text-body-2: #e4e4e4;
@@ -858,6 +863,12 @@ body.dragging-divider * {
 .stat-team-win .stat-team-val {
   color: var(--accent);
 }
+.stat-team-row.team-blue .stat-team-name {
+  color: var(--team-blue);
+}
+.stat-team-row.team-red .stat-team-name {
+  color: var(--team-red);
+}
 .stat-card-map {
   grid-column: 1 / -1;
 }
@@ -887,6 +898,18 @@ body.dragging-divider * {
   align-items: baseline;
   gap: 8px;
   margin-bottom: 8px;
+}
+.roster-head.team-blue,
+.roster-head.team-red {
+  padding: 5px 10px;
+  margin: 0 0 8px;
+  border-radius: 3px;
+}
+.roster-head.team-blue {
+  background: linear-gradient(90deg, var(--team-blue-bg), transparent 78%);
+}
+.roster-head.team-red {
+  background: linear-gradient(90deg, var(--team-red-bg), transparent 78%);
 }
 .roster-title {
   font: 600 12px var(--cond);
@@ -1074,6 +1097,12 @@ body.dragging-divider * {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   padding: 7px 10px;
+}
+.stats-team-row.team-blue th {
+  background: linear-gradient(90deg, var(--team-blue-bg), rgba(79, 155, 224, 0.06));
+}
+.stats-team-row.team-red th {
+  background: linear-gradient(90deg, var(--team-red-bg), rgba(226, 86, 75, 0.06));
 }
 .stats-team-row .result-badge {
   margin-left: 8px;

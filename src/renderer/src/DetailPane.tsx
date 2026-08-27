@@ -161,7 +161,7 @@ export function DetailPane(props: Props): JSX.Element {
         ) : loading && !meta ? (
           <div className="detail-loading">Loading replay…</div>
         ) : !meta ? null : tab === 'overview' ? (
-          <OverviewTab meta={meta} />
+          <OverviewTab meta={meta} listItem={listItem} onSaveFavourite={onSaveFavourite} />
         ) : tab === 'stats' ? (
           <StatsTab meta={meta} />
         ) : (
@@ -169,7 +169,6 @@ export function DetailPane(props: Props): JSX.Element {
             meta={meta}
             listItem={listItem}
             onToggleFavourite={onToggleFavourite}
-            onSaveFavourite={onSaveFavourite}
             onOpenInFolder={onOpenInFolder}
           />
         )}

@@ -1,6 +1,6 @@
 import type { PlayerMeta, PlayerStats, ReplayMeta } from '../../shared/types'
 import { fmtK } from './format'
-import { buildRosters } from './players'
+import { buildRosters, teamColorNames, teamLabel } from './players'
 
 interface Props {
   meta: ReplayMeta
@@ -23,6 +23,7 @@ const COLS: { key: keyof PlayerStats | 'efficiency'; label: string; kind: 'k' | 
 
 export function StatsTab({ meta }: Props): JSX.Element {
   const rosters = buildRosters(meta)
+  const colors = teamColorNames(meta)
   const hasAny = meta.allyTeams.some((t) => t.players.some((p) => p.stats))
 
   if (!hasAny) {
@@ -53,9 +54,9 @@ export function StatsTab({ meta }: Props): JSX.Element {
             const totals = sumStats(team.players)
             return (
               <tbody key={team.id}>
-                <tr className="stats-team-row">
+                <tr className={`stats-team-row team-${colors[ti] ?? 'none'}`}>
                   <th colSpan={COLS.length + 1}>
-                    TEAM {ti + 1}
+                    {teamLabel(ti, colors[ti] ?? null).toUpperCase()}
                     {team.won === true && <span className="result-badge result-win">VICTORY</span>}
                     {team.won === false && (
                       <span className="result-badge result-loss">DEFEAT</span>
