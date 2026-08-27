@@ -9,9 +9,14 @@ export interface Favourite {
   addedAt: string
 }
 
+/** Bump when the shape/among of parsed fields changes so stale entries are re-parsed. */
+export const CACHE_VERSION = 2
+
 export interface CacheEntry {
   mtimeMs: number
   gameId: string | null
+  /** Parser version that produced `meta`; entries below CACHE_VERSION are ignored. */
+  v?: number
   /** Cached local-only ReplayMeta (never the online-merged version). */
   meta: ReplayMeta | null
 }
@@ -35,7 +40,6 @@ const DEFAULTS: DbShape = {
   settings: {
     replaysFolder: null,
     onlineEnrich: true,
-    spoilResults: false,
     listPaneWidth: 392
   },
   favourites: {},
@@ -141,8 +145,14 @@ class Store {
     return this.data.cache[path]
   }
 
-  setCache(path: string, entry: CacheEntry): void {
-    this.data.cache[path] = entry
+  /** Cache entry for `path` only if it is fresh (mtime match) and current-version. */
+  getFreshCache(path: string, mtimeMs: number): CacheEntry | undefined {
+    const e = this.data.cache[path]
+    return e && e.mtimeMs === mtimeMs && e.v === CACHE_VERSION && e.meta ? e : undefined
+  }
+
+  setCache(path: string, entry: Omit<CacheEntry, 'v'>): void {
+    this.data.cache[path] = { ...entry, v: CACHE_VERSION }
     this.scheduleWrite()
   }
 

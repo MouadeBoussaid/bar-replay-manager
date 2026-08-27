@@ -52,7 +52,6 @@ export function DetailPane(props: Props): JSX.Element {
     )
   }
 
-  const spoil = settings?.spoilResults ?? false
   const mapName = meta?.map.name ?? listItem.mapName
   const { title: mapTitle, version: mapVersion } = splitMapVersion(mapName)
   const teamFormat = meta
@@ -119,21 +118,16 @@ export function DetailPane(props: Props): JSX.Element {
           </button>
         ))}
         <div className="tab-bar-spacer" />
-        <label className="tab-toggle" title="Fetch OS ratings & stats from bar-rts.com">
+        <label
+          className="tab-toggle"
+          title="Also look this game up on bar-rts.com for verified ratings, player colours, country flags and start positions. Adds one network request per replay."
+        >
           <input
             type="checkbox"
             checked={settings?.onlineEnrich ?? false}
             onChange={(e) => onToggleSetting({ onlineEnrich: e.target.checked })}
           />
-          Online
-        </label>
-        <label className="tab-toggle" title="Reveal winners and result badges">
-          <input
-            type="checkbox"
-            checked={spoil}
-            onChange={(e) => onToggleSetting({ spoilResults: e.target.checked })}
-          />
-          Spoil
+          Online lookup
         </label>
       </div>
 
@@ -146,7 +140,7 @@ export function DetailPane(props: Props): JSX.Element {
         ) : loading && !meta ? (
           <div className="detail-loading">Loading replay…</div>
         ) : !meta ? null : tab === 'overview' ? (
-          <OverviewTab meta={meta} spoil={spoil} />
+          <OverviewTab meta={meta} />
         ) : (
           <DetailsTab
             meta={meta}

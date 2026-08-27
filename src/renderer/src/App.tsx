@@ -267,7 +267,6 @@ export function App(): JSX.Element {
           firstLoad={firstLoad}
           query={query}
           sort={sort}
-          showResults={settings?.spoilResults ?? false}
           onQuery={setQuery}
           onSort={setSort}
           onSelect={setSelected}

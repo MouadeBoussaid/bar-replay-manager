@@ -55,9 +55,11 @@ export function listReplays(folder: string): ReplayListItem[] {
 
     // Parse-on-scan: reuse the cache when the file is unchanged, otherwise parse
     // the local file now (no network) so rows carry OS / winner / format.
-    const cache = store.getCache(filePath)
-    let meta: ReplayMeta | null = cache && cache.mtimeMs === mtimeMs ? cache.meta : null
-    if (!meta) {
+    const cached = store.getFreshCache(filePath, mtimeMs)
+    let meta: ReplayMeta
+    if (cached?.meta) {
+      meta = cached.meta
+    } else {
       meta = parseLocal(filePath, fileSize)
       store.setCache(filePath, { mtimeMs, gameId: meta.gameId, meta })
     }
@@ -76,7 +78,7 @@ export function listReplays(folder: string): ReplayListItem[] {
         : null
     const winnerTeamOrdinal = meta.allyTeams.findIndex((t) => t.won === true)
 
-    const gameId = meta.gameId ?? cache?.gameId ?? null
+    const gameId = meta.gameId ?? cached?.gameId ?? null
     const favKey = favouriteKeyForFile(filePath, gameId)
     const fav = store.getFavourite(favKey)
 

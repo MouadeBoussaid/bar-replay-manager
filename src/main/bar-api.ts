@@ -65,9 +65,40 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
 
   const mapW = merged.map.width
   const mapH = merged.map.height
+  const serverAlly: any[] = Array.isArray(s.AllyTeams) ? s.AllyTeams : []
 
-  if (Array.isArray(s.AllyTeams) && s.AllyTeams.length > 0) {
-    merged.allyTeams = s.AllyTeams.map((at: any, idx: number) => ({
+  if (merged.allyTeams.length > 0 && serverAlly.length > 0) {
+    // Overlay server fields onto the locally-parsed roster (local stays the base
+    // so the demo trailer's per-player metal and SPADS skill are never lost).
+    const serverPlayers = new Map<string, any>()
+    for (const at of serverAlly)
+      for (const p of toArray<any>(at.Players)) serverPlayers.set(str(p.name), p)
+
+    merged.allyTeams = merged.allyTeams.map((team, idx) => {
+      const sat = serverAlly[idx]
+      return {
+        ...team,
+        won:
+          typeof sat?.winningTeam === 'boolean' ? sat.winningTeam : team.won,
+        startBox: team.startBox ?? parseStartBox(sat?.startBox),
+        players: team.players.map((pl) => {
+          const sp = serverPlayers.get(pl.name)
+          if (!sp) return pl
+          return {
+            ...pl,
+            countryCode: pl.countryCode ?? (str(sp.countryCode) || undefined),
+            rank: pl.rank ?? numOrUndef(sp.rank),
+            skillOS: pl.skillOS ?? parseServerSkill(sp.skill),
+            skillSigma: pl.skillSigma ?? numOrUndef(sp.skillUncertainty),
+            rgbColor: pl.rgbColor ?? rgbFromServer(sp.rgbColor),
+            startPos: pl.startPos ?? normStartPos(sp, mapW, mapH)
+          }
+        })
+      }
+    })
+  } else if (serverAlly.length > 0) {
+    // No usable local roster — build one from the server.
+    merged.allyTeams = serverAlly.map((at: any, idx: number) => ({
       id: numOrUndef(at.allyTeamId) ?? numOrUndef(at.id) ?? idx,
       won: typeof at.winningTeam === 'boolean' ? at.winningTeam : undefined,
       startBox: parseStartBox(at.startBox),
@@ -78,11 +109,10 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
             faction: str(p.faction) || undefined,
             countryCode: str(p.countryCode) || undefined,
             rank: numOrUndef(p.rank),
-            skillOS: numOrUndef(p.skill),
+            skillOS: parseServerSkill(p.skill),
             skillSigma: numOrUndef(p.skillUncertainty),
-            rgbColor: str(p.rgbColor) || undefined,
-            startPos: normStartPos(p, mapW, mapH),
-            metal: numOrUndef(p.metalProduced ?? p.metal)
+            rgbColor: rgbFromServer(p.rgbColor),
+            startPos: normStartPos(p, mapW, mapH)
           })
         ),
         ...toArray(at.AIs).map(
@@ -96,31 +126,36 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
     }))
   }
 
-  const st = isRecord(s.stats) ? s.stats : undefined
-  if (st) {
-    merged.stats = {
-      peakArmyValue: numOrUndef(st.peakArmyValue ?? st.armyValuePeak),
-      peakArmyValueTeamId: numOrUndef(st.peakArmyValueTeamId),
-      peakArmyValueAtMs: numOrUndef(st.peakArmyValueAtMs),
-      metalProduced: numOrUndef(st.metalProduced),
-      unitsLost: numOrUndef(st.unitsLost),
-      unitsLostPerMinutePeak: numOrUndef(st.unitsLostPerMinutePeak),
-      winReason: str(st.winReason) || undefined
-    }
-  }
-
   if (Array.isArray(s.Spectators)) {
     merged.spectators = s.Spectators.map(
       (p: any): PlayerMeta => ({
         name: str(p.name),
         countryCode: str(p.countryCode) || undefined,
         rank: numOrUndef(p.rank),
-        skillOS: numOrUndef(p.skill)
+        skillOS: parseServerSkill(p.skill)
       })
     )
   }
 
   return merged
+}
+
+/** bar-rts stores skill as a bracketed string like `"[13.87]"` (or occasionally a number). */
+function parseServerSkill(v: unknown): number | undefined {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined
+  if (typeof v !== 'string') return undefined
+  const m = v.match(/-?\d+(\.\d+)?/)
+  return m ? Number(m[0]) : undefined
+}
+
+/** bar-rts stores player colour as `{ r, g, b }` (0..255). */
+function rgbFromServer(v: unknown): string | undefined {
+  if (!isRecord(v)) return undefined
+  const r = numOrUndef(v.r)
+  const g = numOrUndef(v.g)
+  const b = numOrUndef(v.b)
+  if (r === undefined || g === undefined || b === undefined) return undefined
+  return `rgb(${r}, ${g}, ${b})`
 }
 
 /**

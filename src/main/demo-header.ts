@@ -27,6 +27,20 @@ import { gunzipSync } from 'node:zlib'
 
 const MAGIC = 'spring demofile'
 
+/** Final cumulative economy/combat totals for one in-game team (usually one player). */
+export interface TeamStat {
+  teamId: number
+  metalProduced: number
+  metalUsed: number
+  energyProduced: number
+  energyUsed: number
+  damageDealt: number
+  damageReceived: number
+  unitsProduced: number
+  unitsKilled: number
+  unitsDied: number
+}
+
 export interface RawDemo {
   engineVersion: string
   gameId: string | null
@@ -36,7 +50,12 @@ export interface RawDemo {
   wallclockSeconds: number
   demoStreamSize: number
   winningAllyTeams: number[]
+  /** Per-team final statistics, indexed by teamId. Empty when the demo has none. */
+  teamStats: TeamStat[]
 }
+
+// `struct TeamStatistics` is `#pragma pack(1)`: int frame, 12 floats, 7 ints = 80 bytes.
+const TEAM_STAT_ELEM = 80
 
 export function readDemoFile(path: string): RawDemo {
   const fileBuf = readFileSync(path)
@@ -66,15 +85,25 @@ export function readDemoFile(path: string): RawDemo {
   const gameTimeSeconds = buf.readInt32LE(312)
   const wallclockSeconds = buf.readInt32LE(316)
   const playerStatSize = buf.readInt32LE(324)
+  const numTeams = buf.readInt32LE(332)
   const teamStatSize = buf.readInt32LE(336)
+  const teamStatElemSize = buf.readInt32LE(340)
   const winningAllyTeamsSize = buf.readInt32LE(348)
 
   const scriptStart = headerSize > 0 && headerSize < buf.length ? headerSize : 352
   const scriptText = cString(buf, scriptStart, Math.max(0, scriptSize))
 
+  const teamStatsStart = scriptStart + scriptSize + demoStreamSize + playerStatSize
+  const teamStats = readTeamStats(
+    buf,
+    teamStatsStart,
+    teamStatSize,
+    numTeams,
+    teamStatElemSize
+  )
+
   // The winning ally-team list is a trailer after everything else.
-  const winStart =
-    scriptStart + scriptSize + demoStreamSize + playerStatSize + teamStatSize
+  const winStart = teamStatsStart + teamStatSize
   const winningAllyTeams: number[] = []
   if (
     winningAllyTeamsSize > 0 &&
@@ -94,8 +123,68 @@ export function readDemoFile(path: string): RawDemo {
     gameTimeSeconds,
     wallclockSeconds,
     demoStreamSize,
-    winningAllyTeams
+    winningAllyTeams,
+    teamStats
   }
+}
+
+/**
+ * Team-stat chunk layout (Spring `CDemoRecorder::WriteTeamStats`):
+ *   numTeams × int32  — snapshot count per team
+ *   then, per team, `count` × TeamStatistics (80 bytes each)
+ * We keep only each team's last (final, cumulative) snapshot.
+ */
+function readTeamStats(
+  buf: Buffer,
+  start: number,
+  chunkSize: number,
+  numTeams: number,
+  elemSize: number
+): TeamStat[] {
+  if (
+    chunkSize <= 0 ||
+    numTeams <= 0 ||
+    numTeams > 256 ||
+    (elemSize !== 0 && elemSize !== TEAM_STAT_ELEM) ||
+    start < 0 ||
+    start + chunkSize > buf.length ||
+    start + numTeams * 4 > buf.length
+  ) {
+    return []
+  }
+
+  let off = start
+  const counts: number[] = []
+  for (let t = 0; t < numTeams; t++) {
+    counts.push(buf.readInt32LE(off))
+    off += 4
+  }
+
+  const total = counts.reduce((a, c) => a + Math.max(0, c), 0)
+  if (off + total * TEAM_STAT_ELEM > start + chunkSize) return []
+
+  const out: TeamStat[] = []
+  for (let t = 0; t < numTeams; t++) {
+    const count = counts[t]!
+    if (count <= 0) continue
+    // Jump straight to the last snapshot for this team.
+    const lastOff = off + (count - 1) * TEAM_STAT_ELEM
+    if (lastOff + TEAM_STAT_ELEM > buf.length) return out
+    out.push({
+      teamId: t,
+      metalUsed: buf.readFloatLE(lastOff + 4),
+      energyUsed: buf.readFloatLE(lastOff + 8),
+      metalProduced: buf.readFloatLE(lastOff + 12),
+      energyProduced: buf.readFloatLE(lastOff + 16),
+      damageDealt: buf.readFloatLE(lastOff + 44),
+      damageReceived: buf.readFloatLE(lastOff + 48),
+      unitsProduced: buf.readInt32LE(lastOff + 52),
+      unitsDied: buf.readInt32LE(lastOff + 56),
+      unitsKilled: buf.readInt32LE(lastOff + 76)
+    })
+    off += count * TEAM_STAT_ELEM
+  }
+  return out
 }
 
 function cString(buf: Buffer, offset: number, maxLen: number): string {

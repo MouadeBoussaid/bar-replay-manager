@@ -19,7 +19,7 @@ const SORT_LABELS: Record<SortKey, string> = {
   avgos: 'Avg OS'
 }
 
-const ROW_HEIGHT = 84
+const ROW_HEIGHT = 64
 
 interface Props {
   items: ReplayListItem[]
@@ -34,7 +34,6 @@ interface Props {
   firstLoad: boolean
   query: string
   sort: SortKey
-  showResults?: boolean
   onQuery: (q: string) => void
   onSort: (s: SortKey) => void
   onSelect: (filePath: string) => void
@@ -59,7 +58,6 @@ export function ReplayList(props: Props): JSX.Element {
     firstLoad,
     query,
     sort,
-    showResults,
     onQuery,
     onSort,
     onSelect,
@@ -207,7 +205,6 @@ export function ReplayList(props: Props): JSX.Element {
                   item={item}
                   selected={item.filePath === selectedId}
                   zebra={(virtual.start + i) % 2 === 1}
-                  showResults={showResults}
                   onSelect={() => onSelect(item.filePath)}
                   onToggleFavourite={() => onToggleFavourite(item.filePath)}
                 />
@@ -242,20 +239,17 @@ function Row({
   item,
   selected,
   zebra,
-  showResults,
   onSelect,
   onToggleFavourite
 }: {
   item: ReplayListItem
   selected: boolean
   zebra: boolean
-  showResults?: boolean
   onSelect: () => void
   onToggleFavourite: () => void
 }): JSX.Element {
   const format = fmtTeamFormat(item.teamSizes)
-  const showWinner =
-    showResults && item.winnerTeamOrdinal != null && item.winnerTeamOrdinal >= 0
+  const showWinner = item.winnerTeamOrdinal != null && item.winnerTeamOrdinal >= 0
   const title = item.parseError ? item.fileName : item.mapName
 
   return (
@@ -268,7 +262,6 @@ function Row({
       aria-selected={selected}
       onClick={onSelect}
     >
-      <div className="row-thumb" aria-hidden />
       <div className="row-body">
         <div className="row-line1">
           <span className="row-map" title={title}>
@@ -308,7 +301,6 @@ function SkeletonRows(): JSX.Element {
     <div className="skeletons">
       {Array.from({ length: 8 }).map((_, i) => (
         <div className="skeleton-row" key={i}>
-          <div className="skeleton-thumb shimmer" />
           <div className="skeleton-lines">
             <div className="shimmer skeleton-bar w70" />
             <div className="shimmer skeleton-bar w40" />

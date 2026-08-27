@@ -282,11 +282,11 @@ body.dragging-divider * {
 }
 
 .row {
-  height: 84px;
+  height: 64px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border-bottom: 1px solid var(--border-hairline);
   border-left: 2px solid transparent;
   cursor: pointer;
@@ -305,19 +305,6 @@ body.dragging-divider * {
 }
 .row-selected .row-map {
   color: var(--accent);
-}
-.row-thumb {
-  width: 62px;
-  height: 62px;
-  flex: none;
-  background:
-    repeating-linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.07) 0 6px,
-      rgba(255, 255, 255, 0) 6px 12px
-    ),
-    #1a1b1e;
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 .row-body {
   flex: 1;
@@ -421,16 +408,11 @@ body.dragging-divider * {
 
 /* skeletons + empty */
 .skeleton-row {
-  height: 84px;
+  height: 64px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-}
-.skeleton-thumb {
-  width: 62px;
-  height: 62px;
-  flex: none;
+  padding: 9px 12px;
 }
 .skeleton-lines {
   flex: 1;

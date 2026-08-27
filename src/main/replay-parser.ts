@@ -16,9 +16,9 @@ export async function getReplayDetail(
 ): Promise<ReplayMeta> {
   const stat = statSync(filePath)
 
-  const cached = store.getCache(filePath)
+  const cached = store.getFreshCache(filePath, stat.mtimeMs)
   let localMeta: ReplayMeta
-  if (cached && cached.mtimeMs === stat.mtimeMs && cached.meta) {
+  if (cached?.meta) {
     localMeta = cached.meta
   } else {
     localMeta = parseLocal(filePath, stat.size)
@@ -88,6 +88,9 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
   const teams = collectIndexed(game, 'team')
   const allyteams = collectIndexed(game, 'allyteam')
 
+  // Final per-team economy/combat totals from the demo trailer, indexed by teamId.
+  const teamStatById = new Map(raw.teamStats.map((s) => [s.teamId, s]))
+
   const allyMap = new Map<number, AllyTeamMeta>()
   const ensureAlly = (id: number): AllyTeamMeta => {
     let a = allyMap.get(id)
@@ -115,6 +118,7 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
     const teamId = num(p.keys['team'])
     const team = teamId !== undefined ? teams[teamId] : undefined
 
+    const ts = teamId !== undefined ? teamStatById.get(teamId) : undefined
     const pm: PlayerMeta = {
       name: p.keys['name'] ?? `Player ${pid}`,
       countryCode: p.keys['countrycode'] || undefined,
@@ -122,7 +126,8 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
       skillOS: parseSkill(p.keys['skill']),
       skillSigma: num(p.keys['skilluncertainty']),
       faction: team?.keys['side'] || undefined,
-      rgbColor: rgb(team?.keys['rgbcolor'])
+      rgbColor: rgb(team?.keys['rgbcolor']),
+      metal: ts ? Math.round(ts.metalProduced) : undefined
     }
 
     if (isSpec || teamId === undefined || team === undefined) {
@@ -137,10 +142,12 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
     const teamId = num(ai.keys['team'])
     const team = teamId !== undefined ? teams[teamId] : undefined
     const allyId = num(team?.keys['allyteam']) ?? 0
+    const ts = teamId !== undefined ? teamStatById.get(teamId) : undefined
     ensureAlly(allyId).players.push({
       name: ai.keys['name'] ?? ai.keys['shortname'] ?? `AI ${aid}`,
       faction: team?.keys['side'] || undefined,
       rgbColor: rgb(team?.keys['rgbcolor']),
+      metal: ts ? Math.round(ts.metalProduced) : undefined,
       isAi: true
     })
   }
@@ -161,6 +168,20 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
       ? new Date(raw.startTimeUnix * 1000).toISOString()
       : startTimeFromFileName(fileName)
 
+  // Match-wide aggregates from the per-team demo trailer (both sides combined).
+  let stats: ReplayMeta['stats'] | undefined
+  if (raw.teamStats.length > 0) {
+    const sum = (pick: (s: (typeof raw.teamStats)[number]) => number): number =>
+      raw.teamStats.reduce((acc, s) => acc + pick(s), 0)
+    stats = {
+      metalProduced: Math.round(sum((s) => s.metalProduced)),
+      energyProduced: Math.round(sum((s) => s.energyProduced)),
+      unitsLost: sum((s) => s.unitsDied),
+      unitsKilled: sum((s) => s.unitsKilled),
+      damageDealt: Math.round(sum((s) => s.damageDealt))
+    }
+  }
+
   return {
     gameId: raw.gameId,
     filePath,
@@ -178,6 +199,7 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
     gameSettings: sectionKeys(modoptions),
     mapSettings: {},
     spadsSettings: {},
+    stats,
     source: 'local'
   }
 }

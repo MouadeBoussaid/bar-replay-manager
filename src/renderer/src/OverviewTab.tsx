@@ -1,33 +1,25 @@
 import type { AllyTeamMeta, PlayerMeta, ReplayMeta } from '../../shared/types'
-import { fmtClock, fmtK, flagEmoji } from './format'
+import { fmtK, flagEmoji } from './format'
 import { buildRosters, pipPosition, teamAvgOs, type RosterEntry } from './players'
 
 interface Props {
   meta: ReplayMeta
-  spoil: boolean
 }
 
-export function OverviewTab({ meta, spoil }: Props): JSX.Element {
+export function OverviewTab({ meta }: Props): JSX.Element {
   const rosters = buildRosters(meta)
   const slots = meta.allyTeams.reduce((n, t) => n + t.players.length, 0)
-  const winnerIdx = meta.allyTeams.findIndex((t) => t.won === true)
 
   return (
     <div className="overview">
       <div className="overview-top">
         <MapPanel meta={meta} rosters={rosters} slots={slots} />
-        <StatGrid meta={meta} spoil={spoil} winnerIdx={winnerIdx} />
+        <StatGrid meta={meta} />
       </div>
 
       <div className="rosters">
         {meta.allyTeams.map((team, i) => (
-          <TeamRoster
-            key={team.id}
-            team={team}
-            ordinal={i}
-            entries={rosters[i] ?? []}
-            spoil={spoil}
-          />
+          <TeamRoster key={team.id} team={team} ordinal={i} entries={rosters[i] ?? []} />
         ))}
       </div>
     </div>
@@ -83,62 +75,47 @@ function MapPanel({
   )
 }
 
-function StatGrid({
-  meta,
-  spoil,
-  winnerIdx
-}: {
-  meta: ReplayMeta
-  spoil: boolean
-  winnerIdx: number
-}): JSX.Element {
+function StatGrid({ meta }: { meta: ReplayMeta }): JSX.Element {
   const s = meta.stats
+  const winnerIdx = meta.allyTeams.findIndex((t) => t.won === true)
+  const decided = meta.allyTeams.some((t) => t.won != null)
   const dim = meta.map.width && meta.map.height ? `${meta.map.width} × ${meta.map.height}` : null
-
-  const winnerValue = winnerIdx >= 0 ? `Team ${winnerIdx + 1}` : meta.endedNormally ? 'Draw' : '—'
-  const winnerSub =
-    winnerIdx >= 0
-      ? [s?.winReason, s?.peakArmyValueAtMs ? fmtClock(s.peakArmyValueAtMs) : null]
-          .filter(Boolean)
-          .join(' · ') || 'result recorded'
-      : meta.endedNormally
-        ? 'no surviving side'
-        : 'game did not finish'
+  const teamFmt = meta.allyTeams.map((t) => t.players.length).join('v')
 
   return (
     <div className="stat-grid">
       <StatCard
         label="Winner"
-        value={spoil ? winnerValue : 'Hidden'}
-        sub={spoil ? winnerSub : 'enable Spoil to reveal'}
-        rule
-      />
-      <StatCard
-        label="Peak army value"
-        value={fmtK(s?.peakArmyValue)}
+        value={winnerIdx >= 0 ? `Team ${winnerIdx + 1}` : decided ? 'Draw' : '—'}
         sub={
-          s?.peakArmyValue == null
-            ? 'online only'
-            : s.peakArmyValueTeamId != null
-              ? `Team ${s.peakArmyValueTeamId + 1}${s.peakArmyValueAtMs ? ` at ${fmtClock(s.peakArmyValueAtMs)}` : ''}`
-              : 'match peak'
+          winnerIdx >= 0
+            ? `${teamFmt} · ${meta.endedNormally ? 'game finished' : 'host ended early'}`
+            : decided
+              ? 'no surviving side'
+              : 'game did not finish'
         }
         rule
       />
       <StatCard
         label="Metal produced"
         value={fmtK(s?.metalProduced)}
-        sub={s?.metalProduced == null ? 'online only' : 'both teams'}
+        sub={s?.metalProduced == null ? 'no end-game stats in file' : 'both teams'}
         rule
       />
       <StatCard
         label="Units lost"
         value={s?.unitsLost != null ? s.unitsLost.toLocaleString() : '—'}
+        sub={s?.unitsLost == null ? 'no end-game stats in file' : 'both teams'}
+        rule
+      />
+      <StatCard
+        label="Units killed"
+        value={s?.unitsKilled != null ? s.unitsKilled.toLocaleString() : '—'}
         sub={
-          s?.unitsLost == null
-            ? 'online only'
-            : s.unitsLostPerMinutePeak
-              ? `${Math.round(s.unitsLostPerMinutePeak).toLocaleString()} / minute peak`
+          s?.damageDealt != null
+            ? `${fmtK(s.damageDealt)} damage dealt`
+            : s?.unitsKilled == null
+              ? 'no end-game stats in file'
               : 'both teams'
         }
         rule
@@ -177,13 +154,11 @@ function StatCard({
 function TeamRoster({
   team,
   ordinal,
-  entries,
-  spoil
+  entries
 }: {
   team: AllyTeamMeta
   ordinal: number
   entries: RosterEntry[]
-  spoil: boolean
 }): JSX.Element {
   const avg = teamAvgOs(team)
   const won = team.won === true
@@ -193,12 +168,12 @@ function TeamRoster({
     <div className="roster">
       <div className="roster-head">
         <span className="roster-title">TEAM {ordinal + 1}</span>
-        {spoil && won && <span className="result-badge result-win">VICTORY</span>}
-        {spoil && lost && <span className="result-badge result-loss">DEFEAT</span>}
+        {won && <span className="result-badge result-win">VICTORY</span>}
+        {lost && <span className="result-badge result-loss">DEFEAT</span>}
         {avg != null && <span className="roster-avg">avg {avg.toFixed(2)} OS</span>}
       </div>
       {entries.map((entry, i) => (
-        <PlayerLine key={i} entry={entry} winning={spoil && won} />
+        <PlayerLine key={i} entry={entry} winning={won} />
       ))}
     </div>
   )

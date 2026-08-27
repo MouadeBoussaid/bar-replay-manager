@@ -13,8 +13,6 @@ export interface Settings {
   replaysFolder: string | null
   /** When true, the detail view also queries api.bar-rts.com for enriched data. */
   onlineEnrich: boolean
-  /** When true, winners are highlighted / win badges are shown in the detail view. */
-  spoilResults: boolean
   /** Width in px of the left list pane; clamped to [320, 520] by the renderer. */
   listPaneWidth: number
 }
@@ -62,15 +60,16 @@ export interface ReplayMeta {
   mapSettings: Record<string, string>
   spadsSettings: Record<string, string>
   awards?: unknown
-  /** Match-wide aggregate stats for the Overview stat cards. Online only. */
+  /**
+   * Match-wide aggregate stats for the Overview cards, summed across both sides.
+   * From the demo's per-team trailer (offline); bar-rts awards fill gaps.
+   */
   stats?: {
-    peakArmyValue?: number
-    peakArmyValueTeamId?: number
-    peakArmyValueAtMs?: number
     metalProduced?: number
+    energyProduced?: number
     unitsLost?: number
-    unitsLostPerMinutePeak?: number
-    winReason?: string
+    unitsKilled?: number
+    damageDealt?: number
   }
   source: 'local' | 'local+online'
   /** Populated when the local file could not be parsed at all. */
