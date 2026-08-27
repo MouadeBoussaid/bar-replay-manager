@@ -1,6 +1,7 @@
 // Generate app icons from a single source PNG.
 //   node scripts/make-icons.mjs [path-to-source.png]
-// Writes: build/icon.ico, build/icon.png (256), resources/icon.png (256).
+// Writes: build/icon.ico, build/icon.png (256), resources/icon.png (256),
+//         src/renderer/src/assets/icon.png (256, bundled into the title bar).
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -39,8 +40,11 @@ const buffers = await Promise.all(sizes.map(pngAt))
 const png256 = buffers[0]
 writeFileSync(ensure(join(root, 'build/icon.png')), png256)
 writeFileSync(ensure(join(root, 'resources/icon.png')), png256)
+writeFileSync(ensure(join(root, 'src/renderer/src/assets/icon.png')), png256)
 
 const ico = await pngToIco(buffers)
 writeFileSync(ensure(join(root, 'build/icon.ico')), ico)
 
-console.log('wrote build/icon.ico, build/icon.png, resources/icon.png')
+console.log(
+  'wrote build/icon.ico, build/icon.png, resources/icon.png, src/renderer/src/assets/icon.png'
+)

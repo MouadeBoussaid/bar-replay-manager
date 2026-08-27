@@ -99,10 +99,11 @@ body.dragging-divider * {
   -webkit-app-region: no-drag;
 }
 .titlebar-mark {
-  width: 14px;
-  height: 14px;
-  background: var(--accent);
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  display: block;
+  flex: none;
 }
 .titlebar-title {
   font: 500 12px var(--sans);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import iconUrl from './assets/icon.png'
 
 /**
  * Frameless-window title bar with Win11-style controls. The bar itself is a drag
@@ -12,7 +13,7 @@ export function TitleBar(): JSX.Element {
 
   return (
     <header className="titlebar">
-      <span className="titlebar-mark" aria-hidden />
+      <img className="titlebar-mark" src={iconUrl} alt="" aria-hidden />
       <span className="titlebar-title">BAR Replay Browser</span>
       <div className="titlebar-spacer" />
       <div className="titlebar-controls no-drag">
