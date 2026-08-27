@@ -9,7 +9,7 @@ files:
 win:
   target:
     - nsis
-  # icon: build/icon.ico   # add a 256x256 .ico here to brand the app + installer
+  icon: build/icon.ico
 nsis:
   oneClick: false
   perMachine: false

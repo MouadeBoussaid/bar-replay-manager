@@ -1,10 +1,14 @@
 import { app, BrowserWindow, shell } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { stopWatch } from './folder-watcher'
 import { registerIpc } from './ipc'
 import { store } from './store'
 
 let mainWindow: BrowserWindow | null = null
+
+// Bundled at <root>/resources/icon.png; packaged builds use the exe icon instead.
+const ICON_PATH = join(__dirname, '../../resources/icon.png')
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -16,6 +20,7 @@ function createWindow(): void {
     frame: false,
     title: 'BAR Replay Browser',
     backgroundColor: '#0d0e10',
+    ...(existsSync(ICON_PATH) ? { icon: ICON_PATH } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
