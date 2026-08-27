@@ -214,9 +214,10 @@ function PlayerLine({
   winning: boolean
 }): JSX.Element {
   const { player, color, valueShare } = entry
+  const st = player.stats
   return (
     <div className="player-line" style={{ borderLeftColor: color }}>
-      <div className="player-top">
+      <div className="player-top" title={damageTooltip(st)}>
         <span className={`faction faction-${factionKey(player)}`}>{factionLetter(player)}</span>
         <span className="player-flag">{flagEmoji(player.countryCode) || '🏳'}</span>
         <span className="player-name">
@@ -234,11 +235,24 @@ function PlayerLine({
             style={{ width: `${Math.round(valueShare * 100)}%` }}
           />
         </span>
-        <span className="player-metal">
-          {player.metal != null ? `${fmtK(player.metal)} metal` : '—'}
-        </span>
+        <span className="player-metal">{st ? `${fmtK(st.damageDealt)} dmg` : '—'}</span>
       </div>
     </div>
+  )
+}
+
+function damageTooltip(st: PlayerMeta['stats']): string {
+  if (!st) return 'No end-game stats for this player'
+  const eff =
+    st.damageReceived > 0
+      ? `${Math.round((st.damageDealt / st.damageReceived) * 100)}%`
+      : st.damageDealt > 0
+        ? '∞'
+        : '—'
+  return (
+    `Damage dealt ${st.damageDealt.toLocaleString()} · ` +
+    `taken ${st.damageReceived.toLocaleString()} · ` +
+    `efficiency ${eff}`
   )
 }
 

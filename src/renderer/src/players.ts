@@ -27,25 +27,28 @@ export function teamAvgOs(team: AllyTeamMeta): number | null {
 export interface RosterEntry {
   player: PlayerMeta
   color: string
-  /** Fraction 0..1 of the highest metal value in the whole match (for the bar). */
+  /** Fraction 0..1 of the highest damage-dealt figure in the whole match (for the bar). */
   valueShare: number
 }
 
 /**
  * Flatten the match into per-team roster entries with a shared colour index and a
- * value bar scaled to the single highest metal figure across every player.
+ * value bar scaled to the single highest damage-dealt figure across every player.
  */
 export function buildRosters(meta: ReplayMeta): RosterEntry[][] {
   let gi = 0
-  let maxMetal = 0
+  let maxDmg = 0
   for (const t of meta.allyTeams)
-    for (const p of t.players) if ((p.metal ?? 0) > maxMetal) maxMetal = p.metal ?? 0
+    for (const p of t.players) {
+      const d = p.stats?.damageDealt ?? 0
+      if (d > maxDmg) maxDmg = d
+    }
 
   return meta.allyTeams.map((team) =>
     team.players.map((player) => ({
       player,
       color: playerColor(player, gi++),
-      valueShare: maxMetal > 0 ? (player.metal ?? 0) / maxMetal : 0
+      valueShare: maxDmg > 0 ? (player.stats?.damageDealt ?? 0) / maxDmg : 0
     }))
   )
 }
