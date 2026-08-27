@@ -250,6 +250,10 @@ function Row({
 }): JSX.Element {
   const format = fmtTeamFormat(item.teamSizes)
   const showWinner = item.winnerTeamOrdinal != null && item.winnerTeamOrdinal >= 0
+  const winTone = item.winnerTeamColor
+  const winLabel = winTone
+    ? `TEAM ${winTone.toUpperCase()}`
+    : `TEAM ${(item.winnerTeamOrdinal ?? 0) + 1}`
   const title = item.parseError ? item.fileName : item.mapName
 
   return (
@@ -283,8 +287,12 @@ function Row({
         </div>
         <div className="row-line3">
           {item.teamSizes.length > 0 && (
-            <span className={`row-badge ${showWinner ? 'row-badge-win' : ''}`}>
-              {showWinner ? `TEAM ${item.winnerTeamOrdinal! + 1}` : format}
+            <span
+              className={`row-badge ${
+                showWinner ? `row-badge-${winTone ?? 'win'}` : ''
+              }`}
+            >
+              {showWinner ? winLabel : format}
             </span>
           )}
           {item.avgOs != null && (

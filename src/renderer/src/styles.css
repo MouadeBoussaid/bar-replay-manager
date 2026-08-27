@@ -372,6 +372,14 @@ body.dragging-divider * {
   background: rgba(255, 225, 77, 0.16);
   color: var(--accent);
 }
+.row-badge-blue {
+  background: var(--team-blue-bg);
+  color: var(--team-blue);
+}
+.row-badge-red {
+  background: var(--team-red-bg);
+  color: var(--team-red);
+}
 .row-os {
   font: 400 10.5px var(--mono);
   color: rgba(255, 255, 255, 0.4);

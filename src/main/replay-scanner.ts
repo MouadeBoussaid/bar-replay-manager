@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ReplayListItem, ReplayMeta } from '../shared/types'
+import { teamColorNames } from '../shared/team-colors'
 import { favouriteKeyForFile } from './favourites'
 import { parseLocal } from './replay-parser'
 import { store } from './store'
@@ -77,6 +78,10 @@ export function listReplays(folder: string): ReplayListItem[] {
         ? rated.reduce((sum, p) => sum + (p.skillOS ?? 0), 0) / rated.length
         : null
     const winnerTeamOrdinal = meta.allyTeams.findIndex((t) => t.won === true)
+    const winnerTeamColor =
+      winnerTeamOrdinal >= 0
+        ? (teamColorNames(meta)[winnerTeamOrdinal] ?? null)
+        : null
 
     const gameId = meta.gameId ?? cached?.gameId ?? null
     const favKey = favouriteKeyForFile(filePath, gameId)
@@ -97,6 +102,7 @@ export function listReplays(folder: string): ReplayListItem[] {
       teamSizes: meta.allyTeams.map((t) => t.players.length),
       avgOs,
       winnerTeamOrdinal: winnerTeamOrdinal >= 0 ? winnerTeamOrdinal : null,
+      winnerTeamColor,
       endedNormally: parsed ? meta.endedNormally : null,
       parsed,
       parseError,

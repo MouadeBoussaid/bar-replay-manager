@@ -114,6 +114,8 @@ export interface ReplayListItem {
   avgOs: number | null
   /** Ordinal (0-based) of the winning ally team, or null. */
   winnerTeamOrdinal: number | null
+  /** BAR blue/red label for the winning team, when it can be told apart. */
+  winnerTeamColor: 'blue' | 'red' | null
   endedNormally: boolean | null
   /** True once the local file has been parsed (rich fields are trustworthy). */
   parsed: boolean
