@@ -217,13 +217,18 @@ function PlayerLine({
   const st = player.stats
   return (
     <div className="player-line" style={{ borderLeftColor: color }}>
-      <div className="player-top" title={damageTooltip(st)}>
+      <div className="player-top">
         <span className={`faction faction-${factionKey(player)}`}>{factionLetter(player)}</span>
         <span className="player-flag">{flagEmoji(player.countryCode) || '🏳'}</span>
         <span className="player-name">
           {player.name}
           {player.isAi && <span className="ai-tag">AI</span>}
         </span>
+        {st && (
+          <span className="player-eff" title="damage dealt ÷ damage taken">
+            {damageEfficiency(st)} eff
+          </span>
+        )}
         <span className="player-os">
           {typeof player.skillOS === 'number' ? `${player.skillOS.toFixed(2)} OS` : '—'}
         </span>
@@ -241,19 +246,9 @@ function PlayerLine({
   )
 }
 
-function damageTooltip(st: PlayerMeta['stats']): string {
-  if (!st) return 'No end-game stats for this player'
-  const eff =
-    st.damageReceived > 0
-      ? `${Math.round((st.damageDealt / st.damageReceived) * 100)}%`
-      : st.damageDealt > 0
-        ? '∞'
-        : '—'
-  return (
-    `Damage dealt ${st.damageDealt.toLocaleString()} · ` +
-    `taken ${st.damageReceived.toLocaleString()} · ` +
-    `efficiency ${eff}`
-  )
+function damageEfficiency(st: NonNullable<PlayerMeta['stats']>): string {
+  if (st.damageReceived > 0) return `${Math.round((st.damageDealt / st.damageReceived) * 100)}%`
+  return st.damageDealt > 0 ? '∞' : '—'
 }
 
 function factionKey(p: PlayerMeta): string {
