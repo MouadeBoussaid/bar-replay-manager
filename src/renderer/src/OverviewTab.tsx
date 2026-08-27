@@ -1,7 +1,8 @@
 import type { AllyTeamMeta, PlayerMeta, ReplayMeta } from '../../shared/types'
 import { fmtK, flagEmoji } from './format'
-import { buildRosters, pipPosition, teamAvgOs, type RosterEntry } from './players'
+import { buildPips, buildRosters, teamAvgOs, type RosterEntry } from './players'
 import { useMapImage } from './useMapImage'
+import { useMapInfo } from './useMapInfo'
 
 interface Props {
   meta: ReplayMeta
@@ -14,7 +15,7 @@ export function OverviewTab({ meta }: Props): JSX.Element {
   return (
     <div className="overview">
       <div className="overview-top">
-        <MapPanel meta={meta} rosters={rosters} slots={slots} />
+        <MapPanel meta={meta} slots={slots} />
         <StatGrid meta={meta} />
       </div>
 
@@ -27,18 +28,12 @@ export function OverviewTab({ meta }: Props): JSX.Element {
   )
 }
 
-function MapPanel({
-  meta,
-  rosters,
-  slots
-}: {
-  meta: ReplayMeta
-  rosters: RosterEntry[][]
-  slots: number
-}): JSX.Element {
-  const zoneCount = Math.max(2, meta.allyTeams.length)
+function MapPanel({ meta, slots }: { meta: ReplayMeta; slots: number }): JSX.Element {
   const twoZone = meta.allyTeams.length === 2
   const photo = useMapImage(meta.map.name, 'thumb')
+  const mapInfo = useMapInfo(meta.map.name)
+  const pipRows = buildPips(meta, mapInfo)
+  const approx = pipRows.some((row) => row.some((p) => p.approx))
 
   return (
     <div className="map-panel">
@@ -61,20 +56,18 @@ function MapPanel({
             <span className="zone-caption zone-caption-bottom">SOUTH · TEAM 2</span>
           </>
         )}
-        {meta.allyTeams.map((team, ti) =>
-          team.players.map((p, pi) => {
-            const entry = rosters[ti]?.[pi]
-            const pos = pipPosition(p, team, pi, team.players.length, ti, zoneCount)
-            const flipX = pos.x > 0.74
+        {pipRows.map((row, ti) =>
+          row.map((pip, pi) => {
+            const flipX = pip.x > 0.74
             return (
               <div
                 key={`${ti}-${pi}`}
-                className={`pip ${flipX ? 'pip-flip' : ''}`}
-                style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%` }}
+                className={`pip ${flipX ? 'pip-flip' : ''} ${pip.approx ? 'pip-approx' : ''}`}
+                style={{ left: `${pip.x * 100}%`, top: `${pip.y * 100}%` }}
               >
-                <span className="pip-dot" style={{ background: entry?.color }} />
-                <span className="pip-label" style={{ color: entry?.color }}>
-                  {p.name}
+                <span className="pip-dot" style={{ background: pip.color }} />
+                <span className="pip-label" style={{ color: pip.color }}>
+                  {pip.name}
                 </span>
               </div>
             )
@@ -82,7 +75,8 @@ function MapPanel({
         )}
       </div>
       <div className="map-caption">
-        start positions · {slots} slot{slots === 1 ? '' : 's'}
+        {approx ? 'start areas (approx)' : 'player start positions'} · {slots} slot
+        {slots === 1 ? '' : 's'}
       </div>
     </div>
   )

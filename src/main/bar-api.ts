@@ -63,8 +63,6 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
   if (isRecord(s.spadsSettings)) merged.spadsSettings = stringifyValues(s.spadsSettings)
   if (s.awards !== undefined) merged.awards = s.awards
 
-  const mapW = merged.map.width
-  const mapH = merged.map.height
   const serverAlly: any[] = Array.isArray(s.AllyTeams) ? s.AllyTeams : []
 
   if (merged.allyTeams.length > 0 && serverAlly.length > 0) {
@@ -91,7 +89,7 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
             skillOS: pl.skillOS ?? parseServerSkill(sp.skill),
             skillSigma: pl.skillSigma ?? numOrUndef(sp.skillUncertainty),
             rgbColor: pl.rgbColor ?? rgbFromServer(sp.rgbColor),
-            startPos: pl.startPos ?? normStartPos(sp, mapW, mapH)
+            startPos: pl.startPos ?? serverStartPos(sp)
           }
         })
       }
@@ -112,7 +110,7 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
             skillOS: parseServerSkill(p.skill),
             skillSigma: numOrUndef(p.skillUncertainty),
             rgbColor: rgbFromServer(p.rgbColor),
-            startPos: normStartPos(p, mapW, mapH)
+            startPos: serverStartPos(p)
           })
         ),
         ...toArray(at.AIs).map(
@@ -158,26 +156,15 @@ function rgbFromServer(v: unknown): string | undefined {
   return `rgb(${r}, ${g}, ${b})`
 }
 
-/**
- * Normalise a server player's start position to 0..1 map coords. Accepts a few
- * shapes (`startPos.{x,z}`, `startPosX/Z`, already-normalised fractions) and
- * scales raw elmo coords by the map size (1 map unit = 512 elmos).
- */
-function normStartPos(
-  p: any,
-  mapW: number | undefined,
-  mapH: number | undefined
-): { x: number; y: number } | undefined {
-  const raw = p.startPos ?? p.startpos ?? p
-  const x = numOrUndef(raw.x ?? p.startPosX ?? p.startposx)
-  const z = numOrUndef(raw.z ?? raw.y ?? p.startPosZ ?? p.startposz)
+/** A server player's start position in world elmos (`{x, z}`), if present. */
+function serverStartPos(p: any): { x: number; z: number } | undefined {
+  const raw = p?.startPos ?? p?.startpos
+  if (!raw) return undefined
+  const x = numOrUndef(raw.x)
+  const z = numOrUndef(raw.z ?? raw.y)
   if (x === undefined || z === undefined) return undefined
-  if (x >= 0 && x <= 1 && z >= 0 && z <= 1) return { x, y: z }
-  if (!mapW || !mapH) return undefined
-  const nx = x / (mapW * 512)
-  const ny = z / (mapH * 512)
-  if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return undefined
-  return { x: nx, y: ny }
+  if (x === 0 && z === 0) return undefined // engine's "unset" sentinel
+  return { x, z }
 }
 
 function parseStartBox(v: any): AllyBox | undefined {

@@ -151,6 +151,7 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
       skillSigma: num(p.keys['skilluncertainty']),
       faction: team?.keys['side'] || undefined,
       rgbColor: rgb(team?.keys['rgbcolor']),
+      startPos: startPosOf(team),
       metal: ts ? Math.round(ts.metalProduced) : undefined,
       stats: buildStats(teamId, Number(pid))
     }
@@ -172,6 +173,7 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
       name: ai.keys['name'] ?? ai.keys['shortname'] ?? `AI ${aid}`,
       faction: team?.keys['side'] || undefined,
       rgbColor: rgb(team?.keys['rgbcolor']),
+      startPos: startPosOf(team),
       metal: ts ? Math.round(ts.metalProduced) : undefined,
       stats: buildStats(teamId),
       isAi: true
@@ -240,6 +242,17 @@ function num(v: string | undefined): number | undefined {
   if (v === undefined || v === '') return undefined
   const n = Number(v)
   return Number.isFinite(n) ? n : undefined
+}
+
+/** Fixed / pre-placed start position (world elmos) from a `[TEAM_n]` section. */
+function startPosOf(
+  team: TdfSection | undefined
+): { x: number; z: number } | undefined {
+  const x = num(team?.keys['startposx'])
+  const z = num(team?.keys['startposz'])
+  if (x === undefined || z === undefined) return undefined
+  if (x === 0 && z === 0) return undefined
+  return { x, z }
 }
 
 /** SPADS writes skill like `[i22.55]`, `(22.55)`, or plain `22.55`. */

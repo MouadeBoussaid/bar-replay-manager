@@ -42,8 +42,8 @@ export interface PlayerMeta {
   skillSigma?: number
   rgbColor?: string
   isAi?: boolean
-  /** Normalised start position on the map, 0..1 in each axis (x right, y down). */
-  startPos?: { x: number; y: number }
+  /** Start position in world coords (elmos): x east, z south. Renderer normalises. */
+  startPos?: { x: number; z: number }
   /** Total metal produced, in raw units (renderer formats to "N.Nk"). */
   metal?: number
   /** Full per-player end-game stat line, when the demo has a stats trailer. */
@@ -124,6 +124,14 @@ export interface ReplayListItem {
   note: string
 }
 
+export interface MapInfo {
+  /** Map size in map units; multiply by 512 for world elmos. */
+  width: number
+  height: number
+  /** Canonical start spots in world elmos. */
+  startPositions: { x: number; z: number }[]
+}
+
 export interface ClearPreview {
   count: number
   totalBytes: number
@@ -159,6 +167,8 @@ export interface Api {
    * bar-rts map API and cached on disk. Null when unknown or offline.
    */
   getMapImage(mapName: string, size: 'thumb' | 'mq'): Promise<string | null>
+  /** Map dimensions + canonical start spots (world elmos), for plotting pips. */
+  getMapInfo(mapName: string): Promise<MapInfo | null>
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void

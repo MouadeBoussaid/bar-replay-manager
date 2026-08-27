@@ -1,4 +1,4 @@
-import type { AllyTeamMeta, PlayerMeta, ReplayMeta } from '../../shared/types'
+import type { AllyTeamMeta, MapInfo, PlayerMeta, ReplayMeta } from '../../shared/types'
 
 /** Fallback player palette from the design tokens, used when a replay has no rgbColor. */
 export const PLAYER_PALETTE = [
@@ -52,25 +52,80 @@ export function buildRosters(meta: ReplayMeta): RosterEntry[][] {
 
 type Box = { left: number; top: number; right: number; bottom: number }
 
-/** Normalised start position for a pip: the player's own, else spread inside the team box. */
-export function pipPosition(
-  player: PlayerMeta,
-  team: AllyTeamMeta,
-  indexInTeam: number,
-  teamSize: number,
-  teamOrdinal: number,
-  zoneCount: number
-): { x: number; y: number } {
-  if (player.startPos) return player.startPos
+export interface Pip {
+  x: number // 0..1 across the (square) minimap
+  y: number // 0..1 down
+  name: string
+  color: string
+  /** true when the spot is inferred (team box / canonical spot), not the real one. */
+  approx: boolean
+}
 
-  const box = team.startBox ?? defaultBox(teamOrdinal, zoneCount)
-  const cols = Math.max(1, Math.ceil(Math.sqrt(teamSize)))
-  const rows = Math.max(1, Math.ceil(teamSize / cols))
-  const col = indexInTeam % cols
-  const row = Math.floor(indexInTeam / cols)
-  const x = box.left + ((col + 1) / (cols + 1)) * (box.right - box.left)
-  const y = box.top + ((row + 1) / (rows + 1)) * (box.bottom - box.top)
-  return { x, y }
+/**
+ * One pip per player. Uses the player's real world start position when we have it
+ * (needs map dimensions to normalise), else the map's canonical start spots that
+ * fall in the team's box, else an even spread across the team box.
+ */
+export function buildPips(meta: ReplayMeta, mapInfo: MapInfo | null): Pip[][] {
+  const rosters = buildRosters(meta)
+  const worldW = mapInfo ? mapInfo.width * 512 : 0
+  const worldH = mapInfo ? mapInfo.height * 512 : 0
+  const anyReal =
+    worldW > 0 && meta.allyTeams.some((t) => t.players.some((p) => p.startPos))
+
+  // Canonical spots normalised, kept for teams that have no real positions.
+  const canon =
+    worldW > 0
+      ? (mapInfo?.startPositions ?? []).map((s) => ({ x: s.x / worldW, y: s.z / worldH }))
+      : []
+  const canonUsed = new Set<number>()
+
+  return meta.allyTeams.map((team, ti) => {
+    const box = team.startBox ?? defaultBox(ti, Math.max(2, meta.allyTeams.length))
+    // Canonical spots inside this team's box, nearest-first isn't needed — order is fine.
+    const boxSpots = canon
+      .map((p, i) => ({ p, i }))
+      .filter(({ p, i }) => !canonUsed.has(i) && inBox(p, box))
+
+    let boxCursor = 0
+    return (rosters[ti] ?? []).map(({ player, color }, pi) => {
+      if (anyReal && player.startPos && worldW > 0) {
+        return {
+          x: clamp01(player.startPos.x / worldW),
+          y: clamp01(player.startPos.z / worldH),
+          name: player.name,
+          color,
+          approx: false
+        }
+      }
+      const spot = boxSpots[boxCursor++]
+      if (spot) {
+        canonUsed.add(spot.i)
+        return { x: spot.p.x, y: spot.p.y, name: player.name, color, approx: true }
+      }
+      const spread = spreadInBox(box, pi, team.players.length)
+      return { x: spread.x, y: spread.y, name: player.name, color, approx: true }
+    })
+  })
+}
+
+function inBox(p: { x: number; y: number }, b: Box): boolean {
+  return p.x >= b.left && p.x <= b.right && p.y >= b.top && p.y <= b.bottom
+}
+
+function clamp01(n: number): number {
+  return n < 0 ? 0 : n > 1 ? 1 : n
+}
+
+function spreadInBox(box: Box, i: number, count: number): { x: number; y: number } {
+  const cols = Math.max(1, Math.ceil(Math.sqrt(count)))
+  const rows = Math.max(1, Math.ceil(count / cols))
+  const col = i % cols
+  const row = Math.floor(i / cols)
+  return {
+    x: box.left + ((col + 1) / (cols + 1)) * (box.right - box.left),
+    y: box.top + ((row + 1) / (rows + 1)) * (box.bottom - box.top)
+  }
 }
 
 /** Ally teams without an explicit start rect get a horizontal band, top to bottom. */

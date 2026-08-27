@@ -10,7 +10,7 @@ export interface Favourite {
 }
 
 /** Bump when the shape/range of parsed fields changes so stale entries are re-parsed. */
-export const CACHE_VERSION = 4
+export const CACHE_VERSION = 5
 
 export interface CacheEntry {
   mtimeMs: number

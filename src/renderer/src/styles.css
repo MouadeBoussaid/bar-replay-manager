@@ -708,7 +708,9 @@ body.dragging-divider * {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* BAR minimaps are the whole map squashed to a square texture, so `fill`
+     keeps normalised start coords aligned with map features. */
+  object-fit: fill;
   display: block;
 }
 .map-tint {
@@ -754,6 +756,15 @@ body.dragging-divider * {
   flex: none;
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+.pip-approx .pip-dot {
+  opacity: 0.85;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.7),
+    0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+.pip-approx .pip-label {
+  opacity: 0.8;
 }
 .pip-label {
   font: 500 8.5px var(--mono);
