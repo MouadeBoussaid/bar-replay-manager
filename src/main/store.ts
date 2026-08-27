@@ -9,8 +9,8 @@ export interface Favourite {
   addedAt: string
 }
 
-/** Bump when the shape/among of parsed fields changes so stale entries are re-parsed. */
-export const CACHE_VERSION = 2
+/** Bump when the shape/range of parsed fields changes so stale entries are re-parsed. */
+export const CACHE_VERSION = 3
 
 export interface CacheEntry {
   mtimeMs: number

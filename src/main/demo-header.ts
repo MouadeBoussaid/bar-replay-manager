@@ -54,8 +54,12 @@ export interface RawDemo {
   teamStats: TeamStat[]
 }
 
-// `struct TeamStatistics` is `#pragma pack(1)`: int frame, 12 floats, 7 ints = 80 bytes.
-const TEAM_STAT_ELEM = 80
+/**
+ * `struct TeamStatistics` (`#pragma pack(1)`) is 12 floats + 7 ints = 76 bytes,
+ * or 80 with the leading `int frame` that newer Recoil prepends. We derive the
+ * actual per-record size from the chunk instead of trusting the header.
+ */
+const TEAM_STAT_MIN = 76
 
 export function readDemoFile(path: string): RawDemo {
   const fileBuf = readFileSync(path)
@@ -93,27 +97,15 @@ export function readDemoFile(path: string): RawDemo {
   const scriptStart = headerSize > 0 && headerSize < buf.length ? headerSize : 352
   const scriptText = cString(buf, scriptStart, Math.max(0, scriptSize))
 
-  const teamStatsStart = scriptStart + scriptSize + demoStreamSize + playerStatSize
-  const teamStats = readTeamStats(
-    buf,
-    teamStatsStart,
-    teamStatSize,
+  const { teamStats, winningAllyTeams } = readTrailer(buf, {
+    trailerStart: scriptStart + scriptSize + demoStreamSize,
+    demoStreamSize,
+    playerStatSize,
     numTeams,
-    teamStatElemSize
-  )
-
-  // The winning ally-team list is a trailer after everything else.
-  const winStart = teamStatsStart + teamStatSize
-  const winningAllyTeams: number[] = []
-  if (
-    winningAllyTeamsSize > 0 &&
-    winStart >= 0 &&
-    winStart + winningAllyTeamsSize <= buf.length
-  ) {
-    for (let k = 0; k < winningAllyTeamsSize; k++) {
-      winningAllyTeams.push(buf.readUInt8(winStart + k))
-    }
-  }
+    teamStatSize,
+    teamStatElemSize,
+    winSize: winningAllyTeamsSize
+  })
 
   return {
     engineVersion,
@@ -128,63 +120,109 @@ export function readDemoFile(path: string): RawDemo {
   }
 }
 
+interface TrailerLayout {
+  trailerStart: number
+  demoStreamSize: number
+  playerStatSize: number
+  numTeams: number
+  teamStatSize: number
+  teamStatElemSize: number
+  winSize: number
+}
+
 /**
- * Team-stat chunk layout (Spring `CDemoRecorder::WriteTeamStats`):
- *   numTeams × int32  — snapshot count per team
- *   then, per team, `count` × TeamStatistics (80 bytes each)
- * We keep only each team's last (final, cumulative) snapshot.
+ * After the demo stream come three blocks — player stats, team stats and the
+ * winning-ally-team list — whose order has varied across engine versions. We
+ * try the known orderings and accept the one whose team-stats block matches its
+ * declared size exactly (`numTeams` dwords + Σcounts × elemSize).
  */
-function readTeamStats(
+function readTrailer(
   buf: Buffer,
-  start: number,
-  chunkSize: number,
-  numTeams: number,
-  elemSize: number
-): TeamStat[] {
-  if (
-    chunkSize <= 0 ||
-    numTeams <= 0 ||
-    numTeams > 256 ||
-    (elemSize !== 0 && elemSize !== TEAM_STAT_ELEM) ||
-    start < 0 ||
-    start + chunkSize > buf.length ||
-    start + numTeams * 4 > buf.length
-  ) {
-    return []
+  o: TrailerLayout
+): { teamStats: TeamStat[]; winningAllyTeams: number[] } {
+  const { trailerStart, playerStatSize, numTeams, teamStatSize, winSize } = o
+  const empty = { teamStats: [] as TeamStat[], winningAllyTeams: [] as number[] }
+  if (trailerStart < 0 || trailerStart > buf.length) return empty
+
+  const readWinners = (start: number): number[] | null => {
+    if (winSize <= 0) return []
+    if (winSize > 64 || start < 0 || start + winSize > buf.length) return null
+    const ids: number[] = []
+    for (let k = 0; k < winSize; k++) {
+      const v = buf.readUInt8(start + k)
+      if (v > 250) return null // ally-team ids are small
+      ids.push(v)
+    }
+    return ids
   }
 
-  let off = start
-  const counts: number[] = []
-  for (let t = 0; t < numTeams; t++) {
-    counts.push(buf.readInt32LE(off))
-    off += 4
+  const readTeams = (start: number): TeamStat[] | null => {
+    if (teamStatSize <= 0 || numTeams <= 0 || numTeams > 512) return null
+    if (start < 0 || start + teamStatSize > buf.length || numTeams * 4 > teamStatSize) return null
+
+    const counts: number[] = []
+    let off = start
+    for (let t = 0; t < numTeams; t++) {
+      const c = buf.readInt32LE(off)
+      off += 4
+      if (c < 0 || c > 1_000_000) return null
+      counts.push(c)
+    }
+    const sum = counts.reduce((a, c) => a + c, 0)
+    if (sum === 0) return null
+
+    // Derive the real record size from the chunk (76, 80, or a bigger future one).
+    const rec = (teamStatSize - numTeams * 4) / sum
+    if (!Number.isInteger(rec) || rec < TEAM_STAT_MIN || rec > 4096) return null
+    // Newer Recoil prepends `int frame`; economy floats follow it.
+    const f = rec >= TEAM_STAT_MIN + 4 ? 4 : 0
+
+    const out: TeamStat[] = []
+    for (let t = 0; t < numTeams; t++) {
+      const c = counts[t]!
+      if (c <= 0) continue
+      const last = off + (c - 1) * rec // this team's final cumulative snapshot
+      if (last + f + TEAM_STAT_MIN > buf.length) return null
+      out.push({
+        teamId: t,
+        metalUsed: buf.readFloatLE(last + f + 0),
+        energyUsed: buf.readFloatLE(last + f + 4),
+        metalProduced: buf.readFloatLE(last + f + 8),
+        energyProduced: buf.readFloatLE(last + f + 12),
+        damageDealt: buf.readFloatLE(last + f + 40),
+        damageReceived: buf.readFloatLE(last + f + 44),
+        unitsProduced: buf.readInt32LE(last + f + 48),
+        unitsDied: buf.readInt32LE(last + f + 52),
+        unitsKilled: buf.readInt32LE(last + f + 72)
+      })
+      off += c * rec
+    }
+    return out
   }
 
-  const total = counts.reduce((a, c) => a + Math.max(0, c), 0)
-  if (off + total * TEAM_STAT_ELEM > start + chunkSize) return []
-
-  const out: TeamStat[] = []
-  for (let t = 0; t < numTeams; t++) {
-    const count = counts[t]!
-    if (count <= 0) continue
-    // Jump straight to the last snapshot for this team.
-    const lastOff = off + (count - 1) * TEAM_STAT_ELEM
-    if (lastOff + TEAM_STAT_ELEM > buf.length) return out
-    out.push({
-      teamId: t,
-      metalUsed: buf.readFloatLE(lastOff + 4),
-      energyUsed: buf.readFloatLE(lastOff + 8),
-      metalProduced: buf.readFloatLE(lastOff + 12),
-      energyProduced: buf.readFloatLE(lastOff + 16),
-      damageDealt: buf.readFloatLE(lastOff + 44),
-      damageReceived: buf.readFloatLE(lastOff + 48),
-      unitsProduced: buf.readInt32LE(lastOff + 52),
-      unitsDied: buf.readInt32LE(lastOff + 56),
-      unitsKilled: buf.readInt32LE(lastOff + 76)
-    })
-    off += count * TEAM_STAT_ELEM
+  // A crashed game (demoStreamSize 0) has its stream running to EOF — no
+  // dependable trailer offsets, so only a best-effort winner read from the tail.
+  if (o.demoStreamSize > 0) {
+    // Layout A: [playerStats][teamStats][winners]
+    const aStart = trailerStart + playerStatSize
+    const aTeams = readTeams(aStart)
+    if (aTeams) {
+      const w = readWinners(aStart + teamStatSize) ?? readWinners(trailerStart) ?? []
+      return { teamStats: aTeams, winningAllyTeams: w }
+    }
+    // Layout B: [winners][playerStats][teamStats]
+    const bTeams = readTeams(trailerStart + winSize + playerStatSize)
+    if (bTeams) {
+      return { teamStats: bTeams, winningAllyTeams: readWinners(trailerStart) ?? [] }
+    }
   }
-  return out
+
+  const w =
+    readWinners(trailerStart + playerStatSize + teamStatSize) ??
+    readWinners(trailerStart) ??
+    (winSize > 0 ? readWinners(buf.length - winSize) : null) ??
+    []
+  return { teamStats: [], winningAllyTeams: w }
 }
 
 function cString(buf: Buffer, offset: number, maxLen: number): string {
