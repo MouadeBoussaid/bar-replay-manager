@@ -1,0 +1,484 @@
+/* Stage 1: functional, minimally-styled. The real visual design lands in Stage 2. */
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #14161b;
+  --bg-2: #1c1f27;
+  --bg-3: #262a34;
+  --line: #333844;
+  --text: #e6e8ec;
+  --muted: #9aa0ac;
+  --accent: #ffd24a;
+  --danger: #e5534b;
+  --ok: #57ab5a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button.danger {
+  border-color: var(--danger);
+  color: #ffb3ae;
+}
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 8px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---- top bar ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+.topbar .folder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.topbar .label {
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.topbar .path {
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: var(--text);
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+.topbar-right label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+
+/* ---- body layout ---- */
+.body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 210px minmax(360px, 1fr) minmax(360px, 520px);
+  min-height: 0;
+}
+
+.sidebar {
+  border-right: 1px solid var(--line);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-2);
+}
+.sidebar .search {
+  width: 100%;
+}
+.sidebar .check,
+.sidebar .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+.sidebar .check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar .counts {
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---- list ---- */
+.list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+}
+.list-head,
+.row {
+  display: grid;
+  grid-template-columns: 34px 96px 1fr 84px 1.2fr;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+.list-head {
+  height: 32px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.list-head button,
+.list-head span {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+.list-rows {
+  overflow-y: auto;
+  flex: 1;
+}
+.row {
+  height: 30px;
+  border-bottom: 1px solid #23262e;
+  cursor: pointer;
+  overflow: hidden;
+}
+.row:hover {
+  background: var(--bg-2);
+}
+.row.sel {
+  background: #2c3446;
+}
+.row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.players-preview {
+  color: var(--muted);
+}
+.empty-rows,
+.detail.empty {
+  padding: 24px;
+  color: var(--muted);
+}
+
+.star {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 15px;
+  padding: 0;
+  line-height: 1;
+}
+.star.on {
+  color: var(--accent);
+}
+
+/* ---- detail ---- */
+.detail-wrap {
+  overflow-y: auto;
+  background: var(--bg);
+}
+.detail {
+  padding: 14px 16px 40px;
+}
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.detail-title .fname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.spoil {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-3);
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0 0 10px;
+}
+.badge.ok {
+  color: var(--ok);
+}
+.badge.warn {
+  color: #ffb3ae;
+}
+
+table.kv {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+table.kv th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  width: 130px;
+  vertical-align: top;
+  padding: 3px 8px 3px 0;
+}
+table.kv td {
+  padding: 3px 0;
+  word-break: break-word;
+}
+table.kv.small th {
+  width: 45%;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+}
+table.kv.small td {
+  font-size: 11px;
+}
+.mono {
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.team {
+  margin-bottom: 14px;
+}
+.team h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.win-badge,
+.loss-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.win-badge {
+  background: rgba(87, 171, 90, 0.2);
+  color: var(--ok);
+}
+.loss-badge {
+  background: rgba(229, 83, 75, 0.18);
+  color: #ffb3ae;
+}
+ul.players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+ul.players li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+ul.players .flag {
+  width: 18px;
+  text-align: center;
+}
+ul.players .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+ul.players .pname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-tag {
+  margin-left: 6px;
+  font-size: 9px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.faction {
+  color: var(--muted);
+}
+.os {
+  margin-left: auto;
+  color: var(--accent);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+}
+
+.settings-block {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+}
+.settings-block summary {
+  cursor: pointer;
+  color: var(--text);
+}
+.settings-block .count {
+  color: var(--muted);
+}
+.muted {
+  color: var(--muted);
+}
+
+.fav-editor {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.fav-editor h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.fav-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.fav-editor textarea,
+.fav-editor input {
+  width: 100%;
+  resize: vertical;
+}
+
+.detail-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+.detail-foot .mono {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- modal ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  width: min(460px, 90vw);
+}
+.modal h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.sample-list {
+  margin: 8px 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+.error {
+  color: #ffb3ae;
+}
+
+/* ---- toast ---- */
+.toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
