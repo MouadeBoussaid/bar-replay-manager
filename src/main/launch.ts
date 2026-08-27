@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { PlayLaunchResult } from '../shared/types'
 import { candidateReplayFolders } from './paths'
@@ -43,40 +43,6 @@ function findLauncher(installDir: string): string | null {
     if (existsSync(p)) return p
   }
   return null
-}
-
-function engineDir(installDir: string): string {
-  return join(installDir, 'data', 'engine')
-}
-
-/** Engine build folders installed under `<install>/data/engine`. */
-export function listInstalledEngines(): string[] {
-  const installDir = detectBarInstallDir()
-  if (!installDir) return []
-  const dir = engineDir(installDir)
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .sort()
-  } catch {
-    return []
-  }
-}
-
-/**
- * True when `engineTag` from a replay looks satisfiable by an installed engine.
- * Matching is deliberately loose: exact, prefix, or shared leading token.
- */
-export function isEngineInstalled(engineTag: string): boolean {
-  const installed = listInstalledEngines()
-  if (installed.length === 0) return true // can't tell — don't block the user
-  const want = engineTag.trim().toLowerCase()
-  if (!want) return true
-  return installed.some((name) => {
-    const have = name.toLowerCase()
-    return have === want || have.startsWith(want) || want.startsWith(have)
-  })
 }
 
 export function playReplay(filePath: string): PlayLaunchResult {

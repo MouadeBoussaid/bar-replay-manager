@@ -21,7 +21,6 @@ export function App(): JSX.Element {
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<ReplayMeta | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [installedEngines, setInstalledEngines] = useState<string[]>([])
 
   const [showClear, setShowClear] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<ReplayListItem | null>(null)
@@ -79,7 +78,6 @@ export function App(): JSX.Element {
       if (!active) return
       setSettings(s)
       setPaneWidth(clamp(s.listPaneWidth ?? 392))
-      void window.api.getInstalledEngines().then((e) => active && setInstalledEngines(e))
       let f = s.replaysFolder
       if (!f) f = await window.api.detectDefaultFolder()
       if (!active) return
@@ -292,7 +290,6 @@ export function App(): JSX.Element {
           loading={detailLoading}
           listItem={selectedItem}
           settings={settings}
-          installedEngines={installedEngines}
           launchError={launchError}
           onPlay={(fp) => void play(fp)}
           onDismissLaunchError={() => setLaunchError(null)}

@@ -11,7 +11,6 @@ interface Props {
   loading: boolean
   listItem: ReplayListItem | null
   settings: Settings | null
-  installedEngines: string[]
   launchError: string | null
   onPlay: (filePath: string) => void
   onDismissLaunchError: () => void
@@ -34,7 +33,6 @@ export function DetailPane(props: Props): JSX.Element {
     loading,
     listItem,
     settings,
-    installedEngines,
     launchError,
     onPlay,
     onDismissLaunchError,
@@ -61,7 +59,6 @@ export function DetailPane(props: Props): JSX.Element {
   const teamFormat = meta
     ? fmtTeamFormat(meta.allyTeams.map((t) => t.players.length))
     : fmtTeamFormat(listItem.teamSizes)
-  const engineOk = isEngineInstalled(meta?.engineVersion ?? listItem.engineTag ?? '', installedEngines)
   const parseFailed = !!meta?.parseError
 
   return (
@@ -80,12 +77,7 @@ export function DetailPane(props: Props): JSX.Element {
         <div className="hero-scrim" />
         <button
           className="play-btn no-drag"
-          disabled={!engineOk}
-          title={
-            engineOk
-              ? 'Launch this replay in Beyond All Reason'
-              : `Engine build ${meta?.engineVersion || listItem.engineTag || '?'} is not installed`
-          }
+          title="Launch this replay in Beyond All Reason"
           onClick={() => onPlay(listItem.filePath)}
         >
           <span className="play-glyph" aria-hidden />
@@ -176,14 +168,4 @@ function splitMapVersion(name: string): { title: string; version: string } {
   const m = name.match(/^(.*?)[\s_]+(v?\d[\w.]*)$/i)
   if (m) return { title: m[1]!.trim(), version: m[2]! }
   return { title: name, version: '' }
-}
-
-function isEngineInstalled(tag: string, installed: string[]): boolean {
-  if (installed.length === 0) return true
-  const want = tag.trim().toLowerCase()
-  if (!want) return true
-  return installed.some((name) => {
-    const have = name.toLowerCase()
-    return have === want || have.startsWith(want) || want.startsWith(have)
-  })
 }

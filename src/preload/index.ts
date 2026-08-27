@@ -10,7 +10,6 @@ const api: Api = {
   getReplayDetail: (filePath) => ipcRenderer.invoke('replay:detail', filePath),
   playReplay: (filePath) => ipcRenderer.invoke('replay:play', filePath),
   trashReplay: (filePath) => ipcRenderer.invoke('replay:trash', filePath),
-  getInstalledEngines: () => ipcRenderer.invoke('engines:list'),
   getMapImage: (name, size) => ipcRenderer.invoke('map:image', name, size),
   getMapInfo: (name) => ipcRenderer.invoke('map:info', name),
   windowMinimize: () => ipcRenderer.send('window:minimize'),
