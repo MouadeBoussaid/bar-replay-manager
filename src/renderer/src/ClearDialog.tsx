@@ -77,11 +77,11 @@ export function ClearDialog({ folder, onClose, onDone }: Props): JSX.Element {
         )}
 
         <div className="modal-actions">
-          <button onClick={onClose} disabled={busy}>
+          <button className="btn-ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
           <button
-            className="danger"
+            className="btn-danger"
             onClick={confirm}
             disabled={busy || !preview || preview.count === 0}
           >

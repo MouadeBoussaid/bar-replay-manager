@@ -1,12 +1,20 @@
+import { BrowserWindow } from 'electron'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ReplayListItem } from '../shared/types'
+import type { ReplayListItem, ReplayMeta } from '../shared/types'
 import { favouriteKeyForFile } from './favourites'
+import { parseLocal } from './replay-parser'
 import { store } from './store'
 
 // 2026-08-26_22-56-46-123_All That Glitters v2.2.3_2026.07.04.sdfz
 const NAME_RE =
   /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})(?:-\d+)?_(.+)_([^_]+)\.sdfz$/i
+
+function broadcastProgress(done: number, total: number): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('replays:scan-progress', { done, total })
+  }
+}
 
 export function listReplays(folder: string): ReplayListItem[] {
   let names: string[]
@@ -20,6 +28,8 @@ export function listReplays(folder: string): ReplayListItem[] {
   store.pruneCache(paths)
 
   const items: ReplayListItem[] = []
+  let processed = 0
+
   for (const fileName of names) {
     const filePath = join(folder, fileName)
     let fileSize = 0
@@ -43,21 +53,30 @@ export function listReplays(folder: string): ReplayListItem[] {
       engineTag = eng!
     }
 
+    // Parse-on-scan: reuse the cache when the file is unchanged, otherwise parse
+    // the local file now (no network) so rows carry OS / winner / format.
     const cache = store.getCache(filePath)
-    const fresh = cache && cache.mtimeMs === mtimeMs ? cache.meta : null
-    let gameId: string | null = cache?.gameId ?? null
-    let durationMs: number | null = null
-    let playerNames: string[] = []
-
-    if (fresh) {
-      gameId = fresh.gameId ?? gameId
-      durationMs = fresh.durationMs || null
-      mapName = fresh.map?.name ?? mapName
-      startTime = fresh.startTime ?? startTime
-      engineTag = fresh.engineVersion || engineTag
-      playerNames = fresh.allyTeams.flatMap((t) => t.players.map((p) => p.name))
+    let meta: ReplayMeta | null = cache && cache.mtimeMs === mtimeMs ? cache.meta : null
+    if (!meta) {
+      meta = parseLocal(filePath, fileSize)
+      store.setCache(filePath, { mtimeMs, gameId: meta.gameId, meta })
     }
 
+    processed++
+    if (processed % 25 === 0) broadcastProgress(processed, names.length)
+
+    const parseError = !!meta.parseError
+    const parsed = !parseError
+
+    const players = meta.allyTeams.flatMap((t) => t.players)
+    const rated = players.filter((p) => typeof p.skillOS === 'number')
+    const avgOs =
+      rated.length > 0
+        ? rated.reduce((sum, p) => sum + (p.skillOS ?? 0), 0) / rated.length
+        : null
+    const winnerTeamOrdinal = meta.allyTeams.findIndex((t) => t.won === true)
+
+    const gameId = meta.gameId ?? cache?.gameId ?? null
     const favKey = favouriteKeyForFile(filePath, gameId)
     const fav = store.getFavourite(favKey)
 
@@ -67,17 +86,25 @@ export function listReplays(folder: string): ReplayListItem[] {
       fileSize,
       mtimeMs,
       gameId,
-      startTime,
-      mapName,
-      durationMs,
-      engineTag,
-      playerNames,
-      playerCount: playerNames.length || null,
+      startTime: meta.startTime ?? startTime,
+      mapName: meta.map?.name && meta.map.name !== 'Unknown' ? meta.map.name : mapName,
+      durationMs: meta.durationMs || null,
+      engineTag: meta.engineVersion || engineTag,
+      playerNames: players.map((p) => p.name),
+      playerCount: players.length || null,
+      teamSizes: meta.allyTeams.map((t) => t.players.length),
+      avgOs,
+      winnerTeamOrdinal: winnerTeamOrdinal >= 0 ? winnerTeamOrdinal : null,
+      endedNormally: parsed ? meta.endedNormally : null,
+      parsed,
+      parseError,
       isFavourite: !!fav,
       tags: fav?.tags ?? [],
       note: fav?.note ?? ''
     })
   }
+
+  broadcastProgress(names.length, names.length)
 
   items.sort(
     (a, b) =>

@@ -8,13 +8,14 @@ let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 940,
-    minHeight: 600,
+    width: 1180,
+    height: 860,
+    minWidth: 1024,
+    minHeight: 720,
     show: false,
-    title: 'BAR Replay Manager',
-    backgroundColor: '#14161b',
+    frame: false,
+    title: 'BAR Replay Browser',
+    backgroundColor: '#0d0e10',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -27,6 +28,11 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  const emitMaximizeState = (): void =>
+    mainWindow?.webContents.send('window:maximize-changed', mainWindow.isMaximized())
+  mainWindow.on('maximize', emitMaximizeState)
+  mainWindow.on('unmaximize', emitMaximizeState)
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)

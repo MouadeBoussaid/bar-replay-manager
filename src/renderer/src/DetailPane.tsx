@@ -1,267 +1,179 @@
 import { useEffect, useState } from 'react'
-import type { ReplayListItem, ReplayMeta } from '../../shared/types'
-import { fmtBytes, fmtDateTime, fmtDuration, flagEmoji } from './format'
+import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
+import { DetailsTab } from './DetailsTab'
+import { OverviewTab } from './OverviewTab'
+import { fmtClock, fmtHeroDateTime, fmtTeamFormat } from './format'
 
 interface Props {
   meta: ReplayMeta | null
   loading: boolean
   listItem: ReplayListItem | null
-  spoilResults: boolean
-  onToggleSpoil: (v: boolean) => void
+  settings: Settings | null
+  installedEngines: string[]
+  launchError: string | null
+  onPlay: (filePath: string) => void
+  onDismissLaunchError: () => void
+  onToggleSetting: (patch: Partial<Settings>) => void
   onToggleFavourite: () => void
   onSaveFavourite: (data: { note: string; tags: string[] }) => void
   onOpenInFolder: () => void
 }
 
-export function DetailPane({
-  meta,
-  loading,
-  listItem,
-  spoilResults,
-  onToggleSpoil,
-  onToggleFavourite,
-  onSaveFavourite,
-  onOpenInFolder
-}: Props): JSX.Element {
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'details', label: 'Details' }
+] as const
+type TabId = (typeof TABS)[number]['id']
+
+export function DetailPane(props: Props): JSX.Element {
+  const {
+    meta,
+    loading,
+    listItem,
+    settings,
+    installedEngines,
+    launchError,
+    onPlay,
+    onDismissLaunchError,
+    onToggleSetting,
+    onToggleFavourite,
+    onSaveFavourite,
+    onOpenInFolder
+  } = props
+
+  const [tab, setTab] = useState<TabId>('overview')
+  useEffect(() => setTab('overview'), [listItem?.filePath])
+
   if (!listItem) {
     return (
-      <div className="detail empty">
-        <p>Select a replay to see its details.</p>
-      </div>
+      <section className="detail-pane">
+        <div className="detail-empty">Select a replay</div>
+      </section>
     )
   }
 
+  const spoil = settings?.spoilResults ?? false
+  const mapName = meta?.map.name ?? listItem.mapName
+  const { title: mapTitle, version: mapVersion } = splitMapVersion(mapName)
+  const teamFormat = meta
+    ? fmtTeamFormat(meta.allyTeams.map((t) => t.players.length))
+    : fmtTeamFormat(listItem.teamSizes)
+  const engineOk = isEngineInstalled(meta?.engineVersion ?? listItem.engineTag ?? '', installedEngines)
+  const parseFailed = !!meta?.parseError
+
   return (
-    <div className="detail">
-      <div className="detail-head">
-        <div className="detail-title">
-          <button
-            className={`star ${listItem.isFavourite ? 'on' : ''}`}
-            title={listItem.isFavourite ? 'Remove favourite' : 'Add favourite'}
-            onClick={onToggleFavourite}
-          >
-            {listItem.isFavourite ? '★' : '☆'}
-          </button>
-          <span className="fname">{meta?.fileName ?? listItem.fileName}</span>
+    <section className="detail-pane">
+      <div className="hero">
+        <div className="hero-scrim" />
+        <button
+          className="play-btn no-drag"
+          disabled={!engineOk}
+          title={
+            engineOk
+              ? 'Launch this replay in Beyond All Reason'
+              : `Engine build ${meta?.engineVersion || listItem.engineTag || '?'} is not installed`
+          }
+          onClick={() => onPlay(listItem.filePath)}
+        >
+          <span className="play-glyph" aria-hidden />
+          PLAY REPLAY
+        </button>
+
+        <div className="hero-caption">
+          <div className="hero-title">
+            {parseFailed ? listItem.fileName : mapTitle}
+            {!parseFailed && mapVersion && <span className="hero-version">{mapVersion}</span>}
+          </div>
+          <div className="hero-sub">
+            {meta
+              ? [
+                  fmtHeroDateTime(meta.startTime),
+                  fmtClock(meta.durationMs),
+                  teamFormat,
+                  meta.engineVersion ? `engine ${meta.engineVersion}` : null
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : 'Loading…'}
+          </div>
         </div>
-        <label className="spoil">
+
+        {launchError && (
+          <div className="hero-error no-drag">
+            <span>{launchError}</span>
+            <button onClick={onDismissLaunchError} aria-label="Dismiss">
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="tab-bar">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            className={`tab ${tab === t.id ? 'tab-active' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+        <div className="tab-bar-spacer" />
+        <label className="tab-toggle" title="Fetch OS ratings & stats from bar-rts.com">
           <input
             type="checkbox"
-            checked={spoilResults}
-            onChange={(e) => onToggleSpoil(e.target.checked)}
+            checked={settings?.onlineEnrich ?? false}
+            onChange={(e) => onToggleSetting({ onlineEnrich: e.target.checked })}
           />
-          Spoil results
+          Online
+        </label>
+        <label className="tab-toggle" title="Reveal winners and result badges">
+          <input
+            type="checkbox"
+            checked={spoil}
+            onChange={(e) => onToggleSetting({ spoilResults: e.target.checked })}
+          />
+          Spoil
         </label>
       </div>
 
-      {loading && <p className="muted">Loading…</p>}
-
-      {meta && (
-        <>
-          {meta.enrichError && (
-            <p className="badge warn">Local data only — {meta.enrichError}</p>
-          )}
-          {meta.source === 'local' && !meta.enrichError && (
-            <p className="badge">Local data only</p>
-          )}
-          {meta.source === 'local+online' && (
-            <p className="badge ok">Enriched from bar-rts.com</p>
-          )}
-
-          <table className="kv">
-            <tbody>
-              <tr>
-                <th>Map</th>
-                <td>{meta.map.name}</td>
-              </tr>
-              <tr>
-                <th>Duration</th>
-                <td>{fmtDuration(meta.durationMs)}</td>
-              </tr>
-              <tr>
-                <th>Date &amp; time</th>
-                <td>{fmtDateTime(meta.startTime)}</td>
-              </tr>
-              <tr>
-                <th>Engine</th>
-                <td>{meta.engineVersion || '—'}</td>
-              </tr>
-              <tr>
-                <th>Game</th>
-                <td>{meta.gameVersion || '—'}</td>
-              </tr>
-              <tr>
-                <th>Ended normally</th>
-                <td>{meta.endedNormally ? 'Yes' : 'No'}</td>
-              </tr>
-              <tr>
-                <th>Game ID</th>
-                <td className="mono">{meta.gameId ?? '—'}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          {meta.allyTeams.map((team, i) => (
-            <div className="team" key={team.id}>
-              <h3>
-                Team {i + 1}
-                {spoilResults && team.won === true && (
-                  <span className="win-badge">Winner</span>
-                )}
-                {spoilResults && team.won === false && (
-                  <span className="loss-badge">Lost</span>
-                )}
-              </h3>
-              <ul className="players">
-                {team.players.map((p, j) => (
-                  <li key={`${p.name}-${j}`}>
-                    <span className="flag">{flagEmoji(p.countryCode)}</span>
-                    <span
-                      className="dot"
-                      style={p.rgbColor ? { background: p.rgbColor } : undefined}
-                    />
-                    <span className="pname">
-                      {p.name}
-                      {p.isAi && <span className="ai-tag">AI</span>}
-                    </span>
-                    {p.faction && <span className="faction">{p.faction}</span>}
-                    {typeof p.skillOS === 'number' && (
-                      <span className="os">[{p.skillOS.toFixed(2)}]OS</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-
-          {meta.spectators.length > 0 && (
-            <div className="team">
-              <h3>Spectators</h3>
-              <ul className="players">
-                {meta.spectators.map((p, j) => (
-                  <li key={`${p.name}-${j}`}>
-                    <span className="flag">{flagEmoji(p.countryCode)}</span>
-                    <span className="pname">{p.name}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <SettingsBlock title="Host Settings" data={meta.hostSettings} />
-          <SettingsBlock title="SPADS Settings" data={meta.spadsSettings} />
-          <SettingsBlock title="Game Settings" data={meta.gameSettings} />
-          <SettingsBlock title="Map Settings" data={meta.mapSettings} />
-
-          <FavouriteEditor
-            key={meta.gameId ?? meta.filePath}
-            enabled={listItem.isFavourite}
-            note={listItem.note}
-            tags={listItem.tags}
-            onSave={onSaveFavourite}
-          />
-
-          <div className="detail-foot">
-            <span className="mono">{meta.filePath}</span>
-            <span>{fmtBytes(meta.fileSize)}</span>
-            <button onClick={onOpenInFolder}>Open containing folder</button>
+      <div className="tab-panel">
+        {parseFailed ? (
+          <div className="parse-error-panel">
+            <p className="parse-error-title">Could not parse this replay</p>
+            <p className="parse-error-detail">{meta?.parseError}</p>
           </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function SettingsBlock({
-  title,
-  data
-}: {
-  title: string
-  data: Record<string, string>
-}): JSX.Element {
-  const entries = Object.entries(data).sort(([a], [b]) => a.localeCompare(b))
-  return (
-    <details className="settings-block">
-      <summary>
-        {title} <span className="count">({entries.length})</span>
-      </summary>
-      {entries.length === 0 ? (
-        <p className="muted">Not available from this source.</p>
-      ) : (
-        <table className="kv small">
-          <tbody>
-            {entries.map(([k, v]) => (
-              <tr key={k}>
-                <th>{k}</th>
-                <td>{v}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </details>
-  )
-}
-
-function FavouriteEditor({
-  enabled,
-  note,
-  tags,
-  onSave
-}: {
-  enabled: boolean
-  note: string
-  tags: string[]
-  onSave: (data: { note: string; tags: string[] }) => void
-}): JSX.Element {
-  const [draftNote, setDraftNote] = useState(note)
-  const [draftTags, setDraftTags] = useState(tags.join(', '))
-
-  useEffect(() => {
-    setDraftNote(note)
-    setDraftTags(tags.join(', '))
-  }, [note, tags])
-
-  if (!enabled) {
-    return (
-      <div className="fav-editor muted">
-        Add this replay to favourites to attach a note and tags.
+        ) : loading && !meta ? (
+          <div className="detail-loading">Loading replay…</div>
+        ) : !meta ? null : tab === 'overview' ? (
+          <OverviewTab meta={meta} spoil={spoil} />
+        ) : (
+          <DetailsTab
+            meta={meta}
+            listItem={listItem}
+            onToggleFavourite={onToggleFavourite}
+            onSaveFavourite={onSaveFavourite}
+            onOpenInFolder={onOpenInFolder}
+          />
+        )}
       </div>
-    )
-  }
-
-  const save = (): void => {
-    onSave({
-      note: draftNote.trim(),
-      tags: draftTags
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    })
-  }
-
-  return (
-    <div className="fav-editor">
-      <h3>Favourite</h3>
-      <label>
-        Note
-        <textarea
-          rows={2}
-          value={draftNote}
-          onChange={(e) => setDraftNote(e.target.value)}
-          onBlur={save}
-          placeholder="e.g. great comeback"
-        />
-      </label>
-      <label>
-        Tags (comma separated)
-        <input
-          value={draftTags}
-          onChange={(e) => setDraftTags(e.target.value)}
-          onBlur={save}
-          placeholder="tourney, 1v1"
-        />
-      </label>
-    </div>
+    </section>
   )
+}
+
+/** "All That Glitters v2.2.3" -> { title: "All That Glitters", version: "v2.2.3" } */
+function splitMapVersion(name: string): { title: string; version: string } {
+  const m = name.match(/^(.*?)[\s_]+(v?\d[\w.]*)$/i)
+  if (m) return { title: m[1]!.trim(), version: m[2]! }
+  return { title: name, version: '' }
+}
+
+function isEngineInstalled(tag: string, installed: string[]): boolean {
+  if (installed.length === 0) return true
+  const want = tag.trim().toLowerCase()
+  if (!want) return true
+  return installed.some((name) => {
+    const have = name.toLowerCase()
+    return have === want || have.startsWith(want) || want.startsWith(have)
+  })
 }

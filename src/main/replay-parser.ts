@@ -74,7 +74,7 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
       mapSettings: {},
       spadsSettings: {},
       source: 'local',
-      enrichError: `Could not parse replay: ${
+      parseError: `Could not parse replay: ${
         err instanceof Error ? err.message : String(err)
       }`
     }

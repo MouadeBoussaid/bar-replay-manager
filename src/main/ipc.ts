@@ -4,6 +4,7 @@ import { basename, join } from 'node:path'
 import type { ClearPreview, ClearResult, Settings } from '../shared/types'
 import { resolveFavouriteKey } from './favourites'
 import { startWatch, stopWatch } from './folder-watcher'
+import { listInstalledEngines, playReplay } from './launch'
 import { detectDefaultFolder } from './paths'
 import { getReplayDetail } from './replay-parser'
 import { listReplays } from './replay-scanner'
@@ -35,6 +36,22 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const { onlineEnrich } = store.getSettings()
     return getReplayDetail(filePath, onlineEnrich)
   })
+
+  ipcMain.handle('replay:play', (_e, filePath: string) => playReplay(filePath))
+  ipcMain.handle('engines:list', () => listInstalledEngines())
+
+  ipcMain.handle('replay:trash', async (_e, filePath: string) => {
+    await shell.trashItem(filePath)
+  })
+
+  ipcMain.on('window:minimize', () => getWindow()?.minimize())
+  ipcMain.on('window:toggleMaximize', () => {
+    const win = getWindow()
+    if (!win) return
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+  })
+  ipcMain.on('window:close', () => getWindow()?.close())
 
   ipcMain.handle('favourite:toggle', (_e, filePath: string) => {
     const key = resolveFavouriteKey(filePath)

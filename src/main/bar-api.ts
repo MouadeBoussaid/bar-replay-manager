@@ -63,6 +63,9 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
   if (isRecord(s.spadsSettings)) merged.spadsSettings = stringifyValues(s.spadsSettings)
   if (s.awards !== undefined) merged.awards = s.awards
 
+  const mapW = merged.map.width
+  const mapH = merged.map.height
+
   if (Array.isArray(s.AllyTeams) && s.AllyTeams.length > 0) {
     merged.allyTeams = s.AllyTeams.map((at: any, idx: number) => ({
       id: numOrUndef(at.allyTeamId) ?? numOrUndef(at.id) ?? idx,
@@ -77,7 +80,9 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
             rank: numOrUndef(p.rank),
             skillOS: numOrUndef(p.skill),
             skillSigma: numOrUndef(p.skillUncertainty),
-            rgbColor: str(p.rgbColor) || undefined
+            rgbColor: str(p.rgbColor) || undefined,
+            startPos: normStartPos(p, mapW, mapH),
+            metal: numOrUndef(p.metalProduced ?? p.metal)
           })
         ),
         ...toArray(at.AIs).map(
@@ -89,6 +94,19 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
         )
       ]
     }))
+  }
+
+  const st = isRecord(s.stats) ? s.stats : undefined
+  if (st) {
+    merged.stats = {
+      peakArmyValue: numOrUndef(st.peakArmyValue ?? st.armyValuePeak),
+      peakArmyValueTeamId: numOrUndef(st.peakArmyValueTeamId),
+      peakArmyValueAtMs: numOrUndef(st.peakArmyValueAtMs),
+      metalProduced: numOrUndef(st.metalProduced),
+      unitsLost: numOrUndef(st.unitsLost),
+      unitsLostPerMinutePeak: numOrUndef(st.unitsLostPerMinutePeak),
+      winReason: str(st.winReason) || undefined
+    }
   }
 
   if (Array.isArray(s.Spectators)) {
@@ -103,6 +121,28 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
   }
 
   return merged
+}
+
+/**
+ * Normalise a server player's start position to 0..1 map coords. Accepts a few
+ * shapes (`startPos.{x,z}`, `startPosX/Z`, already-normalised fractions) and
+ * scales raw elmo coords by the map size (1 map unit = 512 elmos).
+ */
+function normStartPos(
+  p: any,
+  mapW: number | undefined,
+  mapH: number | undefined
+): { x: number; y: number } | undefined {
+  const raw = p.startPos ?? p.startpos ?? p
+  const x = numOrUndef(raw.x ?? p.startPosX ?? p.startposx)
+  const z = numOrUndef(raw.z ?? raw.y ?? p.startPosZ ?? p.startposz)
+  if (x === undefined || z === undefined) return undefined
+  if (x >= 0 && x <= 1 && z >= 0 && z <= 1) return { x, y: z }
+  if (!mapW || !mapH) return undefined
+  const nx = x / (mapW * 512)
+  const ny = z / (mapH * 512)
+  if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return undefined
+  return { x: nx, y: ny }
 }
 
 function parseStartBox(v: any): AllyBox | undefined {

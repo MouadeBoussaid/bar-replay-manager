@@ -32,7 +32,12 @@ interface DbShape {
 }
 
 const DEFAULTS: DbShape = {
-  settings: { replaysFolder: null, onlineEnrich: true, spoilResults: false },
+  settings: {
+    replaysFolder: null,
+    onlineEnrich: true,
+    spoilResults: false,
+    listPaneWidth: 392
+  },
   favourites: {},
   cache: {},
   apiCache: {}
