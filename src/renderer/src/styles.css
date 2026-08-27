@@ -922,6 +922,93 @@ body.dragging-divider * {
   color: rgba(255, 255, 255, 0.38);
 }
 
+/* ----------------------------------------------------------------- stats tab */
+.stats-tab {
+  font: 400 11px var(--sans);
+}
+.stats-empty {
+  padding: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  max-width: 520px;
+}
+.stats-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+}
+.stats-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 720px;
+}
+.stats-table th,
+.stats-table td {
+  padding: 5px 10px;
+  text-align: right;
+  white-space: nowrap;
+  font: 400 10.5px var(--mono);
+  border-bottom: 1px solid var(--border-hairline);
+}
+.stats-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-tab-bar);
+  color: var(--text-dim);
+  font: 600 9px var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.stats-name-col {
+  text-align: left !important;
+  position: sticky;
+  left: 0;
+  background: var(--bg-app);
+  font-family: var(--sans) !important;
+  font-size: 11px !important;
+  color: var(--text-body);
+}
+.stats-table thead .stats-name-col {
+  background: var(--bg-tab-bar);
+  z-index: 1;
+}
+.stats-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.stats-team-row th {
+  text-align: left;
+  background: var(--bg-card);
+  color: #fff;
+  font: 600 11px var(--cond);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 7px 10px;
+}
+.stats-team-row .result-badge {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.stats-total-row td {
+  color: var(--accent);
+  border-bottom: 2px solid var(--border-subtle);
+}
+.stats-total-row .stats-name-col {
+  color: var(--accent);
+  font-weight: 600;
+}
+.stats-note {
+  margin: 10px 0 0;
+  color: var(--text-faint);
+  font: 400 10px var(--sans);
+  max-width: 640px;
+}
+
 /* --------------------------------------------------------------- details tab */
 .details-tab {
   max-width: 760px;

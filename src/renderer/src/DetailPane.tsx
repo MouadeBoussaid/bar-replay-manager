@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
 import { DetailsTab } from './DetailsTab'
 import { OverviewTab } from './OverviewTab'
+import { StatsTab } from './StatsTab'
 import { fmtClock, fmtHeroDateTime, fmtTeamFormat } from './format'
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'stats', label: 'Stats' },
   { id: 'details', label: 'Details' }
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -141,6 +143,8 @@ export function DetailPane(props: Props): JSX.Element {
           <div className="detail-loading">Loading replay…</div>
         ) : !meta ? null : tab === 'overview' ? (
           <OverviewTab meta={meta} />
+        ) : tab === 'stats' ? (
+          <StatsTab meta={meta} />
         ) : (
           <DetailsTab
             meta={meta}

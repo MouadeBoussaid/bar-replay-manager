@@ -59,5 +59,7 @@ for (const [label, start] of [
 
 const parsed = readDemoFile(path)
 console.log('\nparsed.winningAllyTeams', parsed.winningAllyTeams)
-console.log('parsed.teamStats (first 3):', parsed.teamStats.slice(0, 3))
 console.log('parsed.teamStats length', parsed.teamStats.length)
+console.log('parsed.teamStats (first 3):', parsed.teamStats.slice(0, 3))
+console.log('parsed.playerStats length', parsed.playerStats.length)
+console.log('parsed.playerStats (first 3):', parsed.playerStats.slice(0, 3))

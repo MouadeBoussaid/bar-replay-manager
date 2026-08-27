@@ -17,6 +17,21 @@ export interface Settings {
   listPaneWidth: number
 }
 
+/** Per-player end-game statistics from the demo trailer (offline). */
+export interface PlayerStats {
+  metalProduced: number
+  metalExcess: number
+  energyProduced: number
+  energyExcess: number
+  damageDealt: number
+  damageReceived: number
+  unitsProduced: number
+  unitsKilled: number
+  unitsLost: number
+  /** Engine command count / game minutes — close to APM. Humans only. */
+  cmdPerMin?: number
+}
+
 export interface PlayerMeta {
   name: string
   faction?: Faction
@@ -29,8 +44,10 @@ export interface PlayerMeta {
   isAi?: boolean
   /** Normalised start position on the map, 0..1 in each axis (x right, y down). */
   startPos?: { x: number; y: number }
-  /** Total metal produced, in raw units (renderer formats to "N.Nk"). Online only. */
+  /** Total metal produced, in raw units (renderer formats to "N.Nk"). */
   metal?: number
+  /** Full per-player end-game stat line, when the demo has a stats trailer. */
+  stats?: PlayerStats
 }
 
 export interface AllyTeamMeta {

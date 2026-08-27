@@ -90,6 +90,30 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
 
   // Final per-team economy/combat totals from the demo trailer, indexed by teamId.
   const teamStatById = new Map(raw.teamStats.map((s) => [s.teamId, s]))
+  const playerStatById = new Map(raw.playerStats.map((s) => [s.playerId, s]))
+  const gameMinutes = raw.gameTimeSeconds > 0 ? raw.gameTimeSeconds / 60 : 0
+
+  const buildStats = (
+    teamId: number | undefined,
+    playerId?: number
+  ): PlayerMeta['stats'] => {
+    const ts = teamId !== undefined ? teamStatById.get(teamId) : undefined
+    if (!ts) return undefined
+    const ps = playerId !== undefined ? playerStatById.get(playerId) : undefined
+    return {
+      metalProduced: Math.round(ts.metalProduced),
+      metalExcess: Math.round(ts.metalExcess),
+      energyProduced: Math.round(ts.energyProduced),
+      energyExcess: Math.round(ts.energyExcess),
+      damageDealt: Math.round(ts.damageDealt),
+      damageReceived: Math.round(ts.damageReceived),
+      unitsProduced: ts.unitsProduced,
+      unitsKilled: ts.unitsKilled,
+      unitsLost: ts.unitsDied,
+      cmdPerMin:
+        ps && gameMinutes > 0 ? Math.round(ps.numCommands / gameMinutes) : undefined
+    }
+  }
 
   const allyMap = new Map<number, AllyTeamMeta>()
   const ensureAlly = (id: number): AllyTeamMeta => {
@@ -127,7 +151,8 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
       skillSigma: num(p.keys['skilluncertainty']),
       faction: team?.keys['side'] || undefined,
       rgbColor: rgb(team?.keys['rgbcolor']),
-      metal: ts ? Math.round(ts.metalProduced) : undefined
+      metal: ts ? Math.round(ts.metalProduced) : undefined,
+      stats: buildStats(teamId, Number(pid))
     }
 
     if (isSpec || teamId === undefined || team === undefined) {
@@ -148,6 +173,7 @@ export function parseLocal(filePath: string, fileSize: number): ReplayMeta {
       faction: team?.keys['side'] || undefined,
       rgbColor: rgb(team?.keys['rgbcolor']),
       metal: ts ? Math.round(ts.metalProduced) : undefined,
+      stats: buildStats(teamId),
       isAi: true
     })
   }

@@ -32,13 +32,25 @@ export interface TeamStat {
   teamId: number
   metalProduced: number
   metalUsed: number
+  metalExcess: number
   energyProduced: number
   energyUsed: number
+  energyExcess: number
   damageDealt: number
   damageReceived: number
   unitsProduced: number
   unitsKilled: number
   unitsDied: number
+}
+
+/** Per-player input activity (`struct PlayerStatistics`: 5 ints = 20 bytes). */
+export interface PlayerStat {
+  playerId: number
+  mousePixels: number
+  mouseClicks: number
+  keyPresses: number
+  numCommands: number
+  unitCommands: number
 }
 
 export interface RawDemo {
@@ -52,6 +64,8 @@ export interface RawDemo {
   winningAllyTeams: number[]
   /** Per-team final statistics, indexed by teamId. Empty when the demo has none. */
   teamStats: TeamStat[]
+  /** Per-player input stats, indexed by playerId. Empty when the demo has none. */
+  playerStats: PlayerStat[]
 }
 
 /**
@@ -60,6 +74,7 @@ export interface RawDemo {
  * actual per-record size from the chunk instead of trusting the header.
  */
 const TEAM_STAT_MIN = 76
+const PLAYER_STAT_ELEM = 20
 
 export function readDemoFile(path: string): RawDemo {
   const fileBuf = readFileSync(path)
@@ -88,7 +103,9 @@ export function readDemoFile(path: string): RawDemo {
   const demoStreamSize = buf.readInt32LE(308)
   const gameTimeSeconds = buf.readInt32LE(312)
   const wallclockSeconds = buf.readInt32LE(316)
+  const numPlayers = buf.readInt32LE(320)
   const playerStatSize = buf.readInt32LE(324)
+  const playerStatElemSize = buf.readInt32LE(328)
   const numTeams = buf.readInt32LE(332)
   const teamStatSize = buf.readInt32LE(336)
   const teamStatElemSize = buf.readInt32LE(340)
@@ -97,10 +114,12 @@ export function readDemoFile(path: string): RawDemo {
   const scriptStart = headerSize > 0 && headerSize < buf.length ? headerSize : 352
   const scriptText = cString(buf, scriptStart, Math.max(0, scriptSize))
 
-  const { teamStats, winningAllyTeams } = readTrailer(buf, {
+  const { teamStats, playerStats, winningAllyTeams } = readTrailer(buf, {
     trailerStart: scriptStart + scriptSize + demoStreamSize,
     demoStreamSize,
+    numPlayers,
     playerStatSize,
+    playerStatElemSize,
     numTeams,
     teamStatSize,
     teamStatElemSize,
@@ -116,32 +135,38 @@ export function readDemoFile(path: string): RawDemo {
     wallclockSeconds,
     demoStreamSize,
     winningAllyTeams,
-    teamStats
+    teamStats,
+    playerStats
   }
 }
 
 interface TrailerLayout {
   trailerStart: number
   demoStreamSize: number
+  numPlayers: number
   playerStatSize: number
+  playerStatElemSize: number
   numTeams: number
   teamStatSize: number
   teamStatElemSize: number
   winSize: number
 }
 
+interface Trailer {
+  teamStats: TeamStat[]
+  playerStats: PlayerStat[]
+  winningAllyTeams: number[]
+}
+
 /**
  * After the demo stream come three blocks — player stats, team stats and the
- * winning-ally-team list — whose order has varied across engine versions. We
- * try the known orderings and accept the one whose team-stats block matches its
- * declared size exactly (`numTeams` dwords + Σcounts × elemSize).
+ * winning-ally-team list — whose order has varied across engine versions. We try
+ * the known orderings and accept the one whose team-stats block divides evenly
+ * into `numTeams` dword counts + Σcounts × recordSize.
  */
-function readTrailer(
-  buf: Buffer,
-  o: TrailerLayout
-): { teamStats: TeamStat[]; winningAllyTeams: number[] } {
+function readTrailer(buf: Buffer, o: TrailerLayout): Trailer {
   const { trailerStart, playerStatSize, numTeams, teamStatSize, winSize } = o
-  const empty = { teamStats: [] as TeamStat[], winningAllyTeams: [] as number[] }
+  const empty: Trailer = { teamStats: [], playerStats: [], winningAllyTeams: [] }
   if (trailerStart < 0 || trailerStart > buf.length) return empty
 
   const readWinners = (start: number): number[] | null => {
@@ -154,6 +179,32 @@ function readTrailer(
       ids.push(v)
     }
     return ids
+  }
+
+  const readPlayers = (start: number): PlayerStat[] => {
+    const elem = o.playerStatElemSize >= PLAYER_STAT_ELEM ? o.playerStatElemSize : PLAYER_STAT_ELEM
+    if (
+      o.numPlayers <= 0 ||
+      playerStatSize <= 0 ||
+      playerStatSize !== o.numPlayers * elem ||
+      start < 0 ||
+      start + playerStatSize > buf.length
+    ) {
+      return []
+    }
+    const out: PlayerStat[] = []
+    for (let p = 0; p < o.numPlayers; p++) {
+      const b = start + p * elem
+      out.push({
+        playerId: p,
+        mousePixels: buf.readInt32LE(b + 0),
+        mouseClicks: buf.readInt32LE(b + 4),
+        keyPresses: buf.readInt32LE(b + 8),
+        numCommands: buf.readInt32LE(b + 12),
+        unitCommands: buf.readInt32LE(b + 16)
+      })
+    }
+    return out
   }
 
   const readTeams = (start: number): TeamStat[] | null => {
@@ -189,6 +240,8 @@ function readTrailer(
         energyUsed: buf.readFloatLE(last + f + 4),
         metalProduced: buf.readFloatLE(last + f + 8),
         energyProduced: buf.readFloatLE(last + f + 12),
+        metalExcess: buf.readFloatLE(last + f + 16),
+        energyExcess: buf.readFloatLE(last + f + 20),
         damageDealt: buf.readFloatLE(last + f + 40),
         damageReceived: buf.readFloatLE(last + f + 44),
         unitsProduced: buf.readInt32LE(last + f + 48),
@@ -207,13 +260,20 @@ function readTrailer(
     const aStart = trailerStart + playerStatSize
     const aTeams = readTeams(aStart)
     if (aTeams) {
-      const w = readWinners(aStart + teamStatSize) ?? readWinners(trailerStart) ?? []
-      return { teamStats: aTeams, winningAllyTeams: w }
+      return {
+        teamStats: aTeams,
+        playerStats: readPlayers(trailerStart),
+        winningAllyTeams: readWinners(aStart + teamStatSize) ?? readWinners(trailerStart) ?? []
+      }
     }
     // Layout B: [winners][playerStats][teamStats]
     const bTeams = readTeams(trailerStart + winSize + playerStatSize)
     if (bTeams) {
-      return { teamStats: bTeams, winningAllyTeams: readWinners(trailerStart) ?? [] }
+      return {
+        teamStats: bTeams,
+        playerStats: readPlayers(trailerStart + winSize),
+        winningAllyTeams: readWinners(trailerStart) ?? []
+      }
     }
   }
 
@@ -222,7 +282,7 @@ function readTrailer(
     readWinners(trailerStart) ??
     (winSize > 0 ? readWinners(buf.length - winSize) : null) ??
     []
-  return { teamStats: [], winningAllyTeams: w }
+  return { teamStats: [], playerStats: [], winningAllyTeams: w }
 }
 
 function cString(buf: Buffer, offset: number, maxLen: number): string {
