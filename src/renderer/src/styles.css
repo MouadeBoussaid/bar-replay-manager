@@ -670,30 +670,6 @@ body.dragging-divider * {
 .tab-bar-spacer {
   flex: 1;
 }
-.tab-copy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 22px;
-  margin-right: 12px;
-  background: none;
-  border: 1px solid var(--border-control);
-  border-radius: 3px;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition:
-    color 120ms ease-out,
-    border-color 120ms ease-out;
-}
-.tab-copy:hover {
-  color: var(--text-body);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-.tab-copy-done {
-  color: #63e0a8;
-  border-color: #63e0a8;
-}
 .tab-toggle {
   display: flex;
   align-items: center;

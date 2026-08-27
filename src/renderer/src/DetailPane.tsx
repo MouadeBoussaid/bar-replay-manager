@@ -24,6 +24,7 @@ interface Props {
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'stats', label: 'Stats' },
+  { id: 'graphs', label: 'Graphs' },
   { id: 'details', label: 'Details' }
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -45,17 +46,7 @@ export function DetailPane(props: Props): JSX.Element {
   } = props
 
   const [tab, setTab] = useState<TabId>('overview')
-  const [copied, setCopied] = useState(false)
   useEffect(() => setTab('overview'), [listItem?.filePath])
-  useEffect(() => setCopied(false), [listItem?.filePath])
-
-  const copyFileName = (): void => {
-    const name = meta?.fileName ?? listItem?.fileName
-    if (!name) return
-    void window.api.copyText(name)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1400)
-  }
 
   const mapName = meta?.map.name ?? listItem?.mapName ?? null
   const heroPhoto = useMapImage(mapName, 'mq')
@@ -149,48 +140,6 @@ export function DetailPane(props: Props): JSX.Element {
           </button>
         ))}
         <div className="tab-bar-spacer" />
-        <button
-          className={`tab-copy ${copied ? 'tab-copy-done' : ''}`}
-          title={copied ? 'Filename copied' : 'Copy replay filename'}
-          aria-label="Copy replay filename"
-          onClick={copyFileName}
-        >
-          {copied ? (
-            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
-              <path
-                d="M5 13l4 4L19 7"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden>
-              <rect
-                x="8"
-                y="3"
-                width="9"
-                height="4"
-                rx="1"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <rect
-                x="5"
-                y="6"
-                width="15"
-                height="16"
-                rx="2"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-            </svg>
-          )}
-        </button>
         <label
           className="tab-toggle"
           title="Also look this game up on bar-rts.com for verified ratings, player colours, country flags and start positions. Adds one network request per replay."
@@ -216,6 +165,10 @@ export function DetailPane(props: Props): JSX.Element {
           <OverviewTab meta={meta} listItem={listItem} onSaveFavourite={onSaveFavourite} />
         ) : tab === 'stats' ? (
           <StatsTab meta={meta} />
+        ) : tab === 'graphs' ? (
+          <div className="graphs-tab">
+            <p className="stats-empty">Graphs coming soon.</p>
+          </div>
         ) : (
           <DetailsTab
             meta={meta}
