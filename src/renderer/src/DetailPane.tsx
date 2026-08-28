@@ -26,6 +26,7 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'stats', label: 'Stats' },
   { id: 'graphs', label: 'Graphs' },
+  { id: 'analytics', label: 'User analytics' },
   { id: 'details', label: 'Details' }
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -168,6 +169,10 @@ export function DetailPane(props: Props): JSX.Element {
           <StatsTab meta={meta} />
         ) : tab === 'graphs' ? (
           <GraphsTab meta={meta} />
+        ) : tab === 'analytics' ? (
+          <div className="analytics-tab">
+            <p className="stats-empty">User analytics coming soon.</p>
+          </div>
         ) : (
           <DetailsTab
             meta={meta}
