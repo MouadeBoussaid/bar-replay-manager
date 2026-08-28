@@ -22,7 +22,7 @@ const SORT_LABELS: Record<SortKey, string> = {
   ostier: 'OS tier'
 }
 
-const ROW_HEIGHT = 64
+const ROW_HEIGHT = 78
 
 interface Props {
   items: ReplayListItem[]

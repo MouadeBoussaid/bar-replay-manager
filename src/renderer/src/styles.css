@@ -292,7 +292,7 @@ body.dragging-divider * {
 }
 
 .row {
-  height: 64px;
+  height: 78px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -345,11 +345,18 @@ body.dragging-divider * {
   flex: none;
   background: none;
   border: 0;
-  padding: 0;
+  padding: 0 2px;
   line-height: 1;
-  font-size: 17px;
+  font-size: 34px;
   color: var(--text-placeholder);
   cursor: pointer;
+  transition:
+    color 120ms ease-out,
+    transform 90ms ease-out;
+}
+.star:hover {
+  color: var(--text-muted);
+  transform: scale(1.12);
 }
 .star-on {
   color: var(--accent);
@@ -458,7 +465,7 @@ body.dragging-divider * {
 
 /* skeletons + empty */
 .skeleton-row {
-  height: 64px;
+  height: 78px;
   display: flex;
   align-items: center;
   gap: 10px;
