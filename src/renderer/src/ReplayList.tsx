@@ -35,7 +35,8 @@ interface Props {
   totalBytes: number
   nonFavCount: number
   drawCount: number
-  /** When non-empty, split the list into "My replays" / "Watched replays". */
+  aiCount: number
+  /** When non-empty, split the list into "My replays" / "Spectated replays". */
   groupByPlayer: string
   selectedId: string | null
   folder: string | null
@@ -53,6 +54,7 @@ interface Props {
   onChooseFolder: () => void
   onClearNonFavourites: () => void
   onDeleteDraws: () => void
+  onDeleteAi: () => void
   onKeyNav: (dir: 'up' | 'down' | 'home' | 'end' | 'play' | 'delete') => void
 }
 
@@ -63,6 +65,7 @@ export function ReplayList(props: Props): JSX.Element {
     totalBytes,
     nonFavCount,
     drawCount,
+    aiCount,
     groupByPlayer,
     selectedId,
     folder,
@@ -80,6 +83,7 @@ export function ReplayList(props: Props): JSX.Element {
     onChooseFolder,
     onClearNonFavourites,
     onDeleteDraws,
+    onDeleteAi,
     onKeyNav
   } = props
 
@@ -106,7 +110,7 @@ export function ReplayList(props: Props): JSX.Element {
     const out: RenderRow[] = []
     for (const [label, list] of [
       ['My replays', mine],
-      ['Watched replays', watched]
+      ['Spectated replays', watched]
     ] as const) {
       const isCollapsed = collapsed.has(label)
       out.push({ type: 'header', key: `h:${label}`, label, count: list.length, collapsed: isCollapsed })
@@ -301,6 +305,18 @@ export function ReplayList(props: Props): JSX.Element {
           onClick={onDeleteDraws}
         >
           <span aria-hidden>🗑</span> Delete draws
+        </button>
+        <button
+          className="delete-nonfav"
+          disabled={!folder || aiCount === 0}
+          title={
+            aiCount === 0
+              ? 'No AI games (excluding favourites)'
+              : `${aiCount} game${aiCount === 1 ? '' : 's'} against AI`
+          }
+          onClick={onDeleteAi}
+        >
+          <span aria-hidden>🗑</span> Delete AI games
         </button>
         <span className="list-total">
           {totalItems} files · {fmtGigabytes(totalBytes)}

@@ -30,6 +30,7 @@ export function App(): JSX.Element {
   const [analyticsPlayer, setAnalyticsPlayer] = useState('')
   const [pendingDelete, setPendingDelete] = useState<ReplayListItem | null>(null)
   const [pendingDrawDelete, setPendingDrawDelete] = useState(false)
+  const [pendingAiDelete, setPendingAiDelete] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [playState, setPlayState] = useState<'idle' | 'launching' | 'ok'>('idle')
@@ -187,21 +188,33 @@ export function App(): JSX.Element {
     }
   }
 
-  const confirmDeleteDraws = async (): Promise<void> => {
-    setPendingDrawDelete(false)
-    const victims = drawItems.map((i) => i.filePath)
+  const bulkTrash = async (
+    victimItems: ReplayListItem[],
+    noun: string
+  ): Promise<void> => {
+    const victims = victimItems.map((i) => i.filePath)
     if (victims.length === 0) return
     try {
       const { moved, failed } = await window.api.trashReplays(victims)
       if (selected && victims.includes(selected)) setSelected(null)
       await scan(folder)
       flashToast(
-        `Moved ${moved} undecided game${moved === 1 ? '' : 's'} to the Recycle Bin` +
+        `Moved ${moved} ${noun}${moved === 1 ? '' : 's'} to the Recycle Bin` +
           (failed.length ? ` — ${failed.length} could not be moved` : '')
       )
     } catch (e) {
       flashToast(`Could not delete: ${e instanceof Error ? e.message : String(e)}`)
     }
+  }
+
+  const confirmDeleteDraws = async (): Promise<void> => {
+    setPendingDrawDelete(false)
+    await bulkTrash(drawItems, 'undecided game')
+  }
+
+  const confirmDeleteAi = async (): Promise<void> => {
+    setPendingAiDelete(false)
+    await bulkTrash(aiItems, 'AI game')
   }
 
   const filtered = useMemo(() => {
@@ -254,6 +267,7 @@ export function App(): JSX.Element {
       ),
     [items]
   )
+  const aiItems = useMemo(() => items.filter((i) => !i.isFavourite && i.isAiGame), [items])
 
   const selectedItem = useMemo(
     () => items.find((i) => i.filePath === selected) ?? null,
@@ -319,6 +333,7 @@ export function App(): JSX.Element {
           totalBytes={totalBytes}
           nonFavCount={nonFavCount}
           drawCount={drawItems.length}
+          aiCount={aiItems.length}
           groupByPlayer={settings?.perspectivePlayerName ?? ''}
           selectedId={selected}
           folder={folder}
@@ -336,6 +351,7 @@ export function App(): JSX.Element {
           onChooseFolder={() => void changeFolder()}
           onClearNonFavourites={() => setShowClear(true)}
           onDeleteDraws={() => setPendingDrawDelete(true)}
+          onDeleteAi={() => setPendingAiDelete(true)}
           onKeyNav={onListKeyNav}
         />
 
@@ -426,6 +442,24 @@ export function App(): JSX.Element {
           danger
           onCancel={() => setPendingDrawDelete(false)}
           onConfirm={() => void confirmDeleteDraws()}
+        />
+      )}
+
+      {pendingAiDelete && (
+        <ConfirmDialog
+          title="Delete AI games?"
+          body={
+            <>
+              Move <strong>{aiItems.length}</strong> game
+              {aiItems.length === 1 ? '' : 's'} played against AI (
+              <strong>{fmtGigabytes(aiItems.reduce((s, i) => s + i.fileSize, 0))}</strong>) to
+              the Windows Recycle Bin? Favourited replays are kept.
+            </>
+          }
+          confirmLabel="Move to Recycle Bin"
+          danger
+          onCancel={() => setPendingAiDelete(false)}
+          onConfirm={() => void confirmDeleteAi()}
         />
       )}
     </div>

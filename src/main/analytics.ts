@@ -39,6 +39,13 @@ interface Appearance {
 
 let INDEX: Appearance[] = []
 
+/** True when any participant is an AI — flagged in the script, or a name ending "AI". */
+export function isAiReplay(meta: ReplayMeta): boolean {
+  return meta.allyTeams.some((t) =>
+    t.players.some((p) => p.isAi || p.name.trim().endsWith('AI'))
+  )
+}
+
 /** Rebuild the in-memory index from the metadata the scanner already has in hand. */
 export function setAnalyticsIndex(metas: ReplayMeta[]): void {
   const rows: Appearance[] = []
@@ -57,7 +64,7 @@ export function indexedPlayerNames(): string[] {
 // ---- extraction -------------------------------------------------------------
 
 function extractAppearances(meta: ReplayMeta): Appearance[] {
-  if (meta.parseError || meta.allyTeams.length === 0) return []
+  if (meta.parseError || meta.allyTeams.length === 0 || isAiReplay(meta)) return []
   const colors = teamColorNames(meta)
   const fmt = meta.allyTeams.map((t) => t.players.length).join('v')
   const out: Appearance[] = []

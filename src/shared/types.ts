@@ -123,6 +123,8 @@ export interface ReplayListItem {
   /** BAR blue/red label for the winning team, when it can be told apart. */
   winnerTeamColor: 'blue' | 'red' | null
   endedNormally: boolean | null
+  /** A game against AI (a bot participant / a player name ending "AI"). */
+  isAiGame: boolean
   /** True once the local file has been parsed (rich fields are trustworthy). */
   parsed: boolean
   /** True when parsing was attempted and failed (show the filename in place of the map). */

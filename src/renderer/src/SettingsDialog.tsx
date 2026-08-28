@@ -44,7 +44,7 @@ export function SettingsDialog({ player, onSave, onClose }: Props): JSX.Element 
           <label htmlFor="perspective-input">Perspective player</label>
           <p className="settings-hint">
             The player this manager is viewed as. Splits the replay list into{' '}
-            <strong>My replays</strong> and <strong>Watched replays</strong>. Leave empty for
+            <strong>My replays</strong> and <strong>Spectated replays</strong>. Leave empty for
             no split.
           </p>
           <div className="settings-autocomplete">

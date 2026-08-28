@@ -3,7 +3,7 @@ import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ReplayListItem, ReplayMeta } from '../shared/types'
 import { teamColorNames } from '../shared/team-colors'
-import { setAnalyticsIndex } from './analytics'
+import { isAiReplay, setAnalyticsIndex } from './analytics'
 import { favouriteKeyForFile } from './favourites'
 import { parseLocal } from './replay-parser'
 import { store } from './store'
@@ -107,6 +107,7 @@ export function listReplays(folder: string): ReplayListItem[] {
       winnerTeamOrdinal: winnerTeamOrdinal >= 0 ? winnerTeamOrdinal : null,
       winnerTeamColor,
       endedNormally: parsed ? meta.endedNormally : null,
+      isAiGame: parsed && isAiReplay(meta),
       parsed,
       parseError,
       isFavourite: !!fav,
