@@ -28,8 +28,8 @@ export { teamColorNames, teamLabel, type TeamColor } from '../../shared/team-col
 
 /** Purple for the best (top damage / top efficiency). */
 export const HILITE_TOP = '#a855f7'
-/** Bright orange for the worst (lowest damage / lowest efficiency). */
-export const HILITE_BOTTOM = '#ff8a1e'
+/** Cyan for the worst (lowest damage / lowest efficiency) — clear of the red bar ramp. */
+export const HILITE_BOTTOM = '#38d6c6'
 
 export interface RosterEntry {
   player: PlayerMeta
