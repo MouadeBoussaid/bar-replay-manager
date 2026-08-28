@@ -60,7 +60,34 @@ export function DetailPane(props: Props): JSX.Element {
   if (!listItem || !mapName) {
     return (
       <section className="detail-pane">
-        <div className="detail-empty">Select a replay</div>
+        <div className="tab-bar">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`tab ${tab === t.id ? 'tab-active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="tab-panel">
+          {tab === 'analytics' ? (
+            <AnalyticsTab
+              meta={null}
+              playerName={settings?.analyticsPlayerName ?? ''}
+              onSetPlayer={(n) => onToggleSetting({ analyticsPlayerName: n })}
+              onOpenReplay={onSelectReplay}
+            />
+          ) : (
+            <div className="detail-empty">
+              <p>Select a replay from the list.</p>
+              <button className="btn-ghost" onClick={() => setTab('analytics')}>
+                or open User analytics →
+              </button>
+            </div>
+          )}
+        </div>
       </section>
     )
   }

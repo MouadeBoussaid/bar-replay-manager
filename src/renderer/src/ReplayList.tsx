@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReplayListItem } from '../../shared/types'
 import {
   OS_TIER_LABEL,
@@ -26,7 +26,7 @@ const ROW_HEIGHT = 78
 const GROUP_HEADER_H = 36
 
 type RenderRow =
-  | { type: 'header'; key: string; label: string; count: number }
+  | { type: 'header'; key: string; label: string; count: number; collapsed: boolean }
   | { type: 'row'; key: string; item: ReplayListItem }
 
 interface Props {
@@ -84,6 +84,14 @@ export function ReplayList(props: Props): JSX.Element {
   } = props
 
   const searchRef = useRef<HTMLInputElement>(null)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggleGroup = (label: string): void =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
 
   // Flat render list — optionally split into "My replays" / "Watched replays".
   const rows = useMemo<RenderRow[]>(() => {
@@ -100,11 +108,12 @@ export function ReplayList(props: Props): JSX.Element {
       ['My replays', mine],
       ['Watched replays', watched]
     ] as const) {
-      out.push({ type: 'header', key: `h:${label}`, label, count: list.length })
-      for (const i of list) out.push({ type: 'row', key: i.filePath, item: i })
+      const isCollapsed = collapsed.has(label)
+      out.push({ type: 'header', key: `h:${label}`, label, count: list.length, collapsed: isCollapsed })
+      if (!isCollapsed) for (const i of list) out.push({ type: 'row', key: i.filePath, item: i })
     }
     return out
-  }, [items, groupByPlayer])
+  }, [items, groupByPlayer, collapsed])
 
   const heights = useMemo(
     () => rows.map((r) => (r.type === 'header' ? GROUP_HEADER_H : ROW_HEIGHT)),
@@ -242,10 +251,16 @@ export function ReplayList(props: Props): JSX.Element {
             <div style={{ transform: `translateY(${virtual.offsetY}px)` }}>
               {slice.map((r, i) =>
                 r.type === 'header' ? (
-                  <div className="list-group-header" key={r.key} style={{ height: GROUP_HEADER_H }}>
+                  <button
+                    className="list-group-header"
+                    key={r.key}
+                    style={{ height: GROUP_HEADER_H }}
+                    onClick={() => toggleGroup(r.label)}
+                  >
+                    <span className={`list-group-chevron ${r.collapsed ? 'collapsed' : ''}`}>▾</span>
                     {r.label}
                     <span className="list-group-count">{r.count}</span>
-                  </div>
+                  </button>
                 ) : (
                   <Row
                     key={r.key}

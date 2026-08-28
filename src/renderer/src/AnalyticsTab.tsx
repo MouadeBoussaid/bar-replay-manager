@@ -8,7 +8,8 @@ import type {
 import { fmtClock, fmtCompact } from './format'
 
 interface Props {
-  meta: ReplayMeta
+  /** The selected replay (seeds the quick-pick chips), or null when none is selected. */
+  meta: ReplayMeta | null
   /** Currently chosen analytics player (from settings). Empty = no player. */
   playerName: string
   onSetPlayer: (name: string) => void
@@ -404,7 +405,6 @@ function BreakdownRow({ report }: { report: PlayerReport }): JSX.Element {
   return (
     <div className="an-breakdown">
       <BarCard title="Faction" bars={report.factions} thin={report.thinSample} accent />
-      <BarCard title="Team size" bars={report.sizes} thin={report.thinSample} />
       <DurationCard report={report} />
       <StartCard report={report} />
     </div>
@@ -604,11 +604,19 @@ function Appearances({
   onOpenReplay: (f: string) => void
 }): JSX.Element {
   const [filter, setFilter] = useState<'all' | 'win' | 'loss'>('all')
-  const rows = report.appearances.filter((a) =>
+  const [limit, setLimit] = useState(10)
+  const allRows = report.appearances.filter((a) =>
     filter === 'all' ? true : a.result === filter
   )
+  const capped = limit < 25
+  const rows = capped ? allRows.slice(0, limit) : allRows
   const avgEff =
     mean(report.appearances.map((a) => a.eff).filter((v): v is number => v != null)) || 0
+
+  const changeFilter = (v: 'all' | 'win' | 'loss'): void => {
+    setFilter(v)
+    setLimit(10)
+  }
 
   return (
     <div className="an-card an-appear">
@@ -618,7 +626,7 @@ function Appearances({
         <div className="an-spacer" />
         <Segmented
           value={filter}
-          onChange={(v) => setFilter(v as 'all' | 'win' | 'loss')}
+          onChange={(v) => changeFilter(v as 'all' | 'win' | 'loss')}
           options={[
             ['all', 'All'],
             ['win', 'Wins'],
@@ -626,7 +634,7 @@ function Appearances({
           ]}
         />
       </div>
-      <div className="an-appear-scroll">
+      <div className={`an-appear-scroll ${capped ? '' : 'an-appear-scroll-all'}`}>
         <div className="an-appear-grid an-appear-head">
           <span>Date</span>
           <span>Map</span>
@@ -675,8 +683,15 @@ function Appearances({
         ))}
       </div>
       <div className="an-appear-foot">
-        showing {rows.length} of {report.appearances.length} · aggregates from locally indexed
-        replays only. CMD/min ≈ APM (engine command count over game time).
+        <span>
+          showing {rows.length} of {allRows.length} · aggregates from locally indexed replays
+          only. CMD/min ≈ APM (engine command count over game time).
+        </span>
+        {capped && allRows.length > rows.length && (
+          <button className="an-load-more" onClick={() => setLimit(25)}>
+            Load {Math.min(15, allRows.length - rows.length)} more
+          </button>
+        )}
       </div>
     </div>
   )
@@ -691,7 +706,7 @@ function EmptyState({
   notFound,
   query
 }: {
-  meta: ReplayMeta
+  meta: ReplayMeta | null
   names: string[]
   onSetPlayer: (n: string) => void
   notFound: boolean
@@ -699,10 +714,15 @@ function EmptyState({
 }): JSX.Element {
   const picks = useMemo(
     () =>
-      [...new Set(meta.allyTeams.flatMap((t) => t.players.filter((p) => !p.isAi).map((p) => p.name)))].slice(
-        0,
-        8
-      ),
+      meta
+        ? [
+            ...new Set(
+              meta.allyTeams.flatMap((t) =>
+                t.players.filter((p) => !p.isAi).map((p) => p.name)
+              )
+            )
+          ].slice(0, 8)
+        : [],
     [meta]
   )
   return (

@@ -291,17 +291,31 @@ body.dragging-divider * {
   position: relative;
 }
 .list-group-header {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 12px;
   background: var(--bg-folder-strip);
+  border: 0;
   border-bottom: 1px solid var(--border-subtle);
   border-top: 1px solid var(--border-subtle);
   font: 700 10px var(--sans);
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--text-dim);
+  cursor: pointer;
+}
+.list-group-header:hover {
+  background: var(--bg-row-hover);
+  color: var(--text-body);
+}
+.list-group-chevron {
+  font-size: 9px;
+  transition: transform 120ms ease-out;
+}
+.list-group-chevron.collapsed {
+  transform: rotate(-90deg);
 }
 .list-group-count {
   padding: 1px 6px;
@@ -563,10 +577,17 @@ body.dragging-divider * {
 }
 .detail-empty {
   flex: 1;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
   color: var(--text-placeholder);
   font: 400 12px var(--sans);
+}
+.detail-empty p {
+  margin: 0;
 }
 
 .hero {
@@ -1683,7 +1704,7 @@ body.dragging-divider * {
 /* breakdown row */
 .an-breakdown {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -1895,6 +1916,16 @@ body.dragging-divider * {
 .an-appear-scroll {
   overflow-x: auto;
 }
+.an-appear-scroll-all {
+  max-height: 540px;
+  overflow-y: auto;
+}
+.an-appear-scroll-all .an-appear-head {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
 .an-appear-grid {
   display: grid;
   grid-template-columns: 96px minmax(120px, 1fr) 54px 62px 34px 72px 58px 66px 66px 50px 66px;
@@ -1954,10 +1985,30 @@ body.dragging-divider * {
   color: var(--neg-fg);
 }
 .an-appear-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 9px 4px 2px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   font: 400 10px var(--mono);
   color: var(--text-faint);
+}
+.an-appear-foot span {
+  flex: 1;
+  min-width: 0;
+}
+.an-load-more {
+  flex: none;
+  background: none;
+  border: 1px solid var(--border-control);
+  border-radius: 3px;
+  padding: 5px 12px;
+  font: 600 10.5px var(--sans);
+  color: var(--accent);
+  cursor: pointer;
+}
+.an-load-more:hover {
+  background: rgba(255, 225, 77, 0.1);
 }
 
 /* empty + skeleton */
