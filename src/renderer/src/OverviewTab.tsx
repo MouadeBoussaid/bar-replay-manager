@@ -5,6 +5,8 @@ import {
   buildPips,
   buildRosters,
   damageBarColor,
+  HILITE_BOTTOM,
+  HILITE_TOP,
   teamAvgOs,
   teamColorNames,
   teamLabel,
@@ -270,8 +272,9 @@ function TeamRoster({
 }
 
 function PlayerLine({ entry }: { entry: RosterEntry }): JSX.Element {
-  const { player, color, valueShare, topDamage } = entry
+  const { player, color, valueShare, topDamage, bottomDamage, topEff, bottomEff } = entry
   const st = player.stats
+  const effColor = topEff ? HILITE_TOP : bottomEff ? HILITE_BOTTOM : undefined
   return (
     <div className="player-line" style={{ borderLeftColor: color }}>
       <div className="player-top">
@@ -282,7 +285,11 @@ function PlayerLine({ entry }: { entry: RosterEntry }): JSX.Element {
           {player.isAi && <span className="ai-tag">AI</span>}
         </span>
         {st && (
-          <span className="player-eff" title="damage dealt ÷ damage taken">
+          <span
+            className="player-eff"
+            style={effColor ? { color: effColor } : undefined}
+            title="damage dealt ÷ damage taken"
+          >
             {damageEfficiency(st)} eff
           </span>
         )}
@@ -296,7 +303,7 @@ function PlayerLine({ entry }: { entry: RosterEntry }): JSX.Element {
             className="value-fill"
             style={{
               width: `${Math.round(valueShare * 100)}%`,
-              background: damageBarColor(valueShare, topDamage)
+              background: damageBarColor(valueShare, topDamage, bottomDamage)
             }}
           />
         </span>

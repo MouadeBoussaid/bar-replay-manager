@@ -26,14 +26,28 @@ export function teamAvgOs(team: AllyTeamMeta): number | null {
 
 export { teamColorNames, teamLabel, type TeamColor } from '../../shared/team-colors'
 
+/** Purple for the best (top damage / top efficiency). */
+export const HILITE_TOP = '#a855f7'
+/** Bright orange for the worst (lowest damage / lowest efficiency). */
+export const HILITE_BOTTOM = '#ff8a1e'
+
 export interface RosterEntry {
   player: PlayerMeta
   color: string
   /** Fraction 0..1 of the highest damage-dealt figure in the whole match (for the bar). */
   valueShare: number
-  /** This player dealt the most damage in the match (and dealt some). */
+  /** This player dealt the most / least damage in the match. */
   topDamage: boolean
+  bottomDamage: boolean
+  /** This player has the highest / lowest damage efficiency in the match. */
+  topEff: boolean
+  bottomEff: boolean
 }
+
+const effOf = (p: PlayerMeta): number | null =>
+  p.stats && p.stats.damageReceived > 0
+    ? p.stats.damageDealt / p.stats.damageReceived
+    : null
 
 /**
  * Flatten the match into per-team roster entries with a shared colour index and a
@@ -42,28 +56,46 @@ export interface RosterEntry {
 export function buildRosters(meta: ReplayMeta): RosterEntry[][] {
   let gi = 0
   let maxDmg = 0
+  let minDmg = Infinity
+  let maxEff = -Infinity
+  let minEff = Infinity
   for (const t of meta.allyTeams)
     for (const p of t.players) {
-      const d = p.stats?.damageDealt ?? 0
-      if (d > maxDmg) maxDmg = d
+      const d = p.stats?.damageDealt
+      if (d != null) {
+        if (d > maxDmg) maxDmg = d
+        if (d < minDmg) minDmg = d
+      }
+      const e = effOf(p)
+      if (e != null) {
+        if (e > maxEff) maxEff = e
+        if (e < minEff) minEff = e
+      }
     }
+  const dmgSpread = minDmg !== Infinity && minDmg !== maxDmg
+  const effSpread = minEff !== Infinity && minEff !== maxEff
 
   return meta.allyTeams.map((team) =>
     team.players.map((player) => {
       const dmg = player.stats?.damageDealt ?? 0
+      const e = effOf(player)
       return {
         player,
         color: playerColor(player, gi++),
         valueShare: maxDmg > 0 ? dmg / maxDmg : 0,
-        topDamage: maxDmg > 0 && dmg === maxDmg
+        topDamage: maxDmg > 0 && player.stats?.damageDealt === maxDmg,
+        bottomDamage: dmgSpread && player.stats?.damageDealt === minDmg,
+        topEff: effSpread && e === maxEff,
+        bottomEff: effSpread && e === minEff
       }
     })
   )
 }
 
-/** Bar colour for a damage share: light→dark red as it grows, purple for the top. */
-export function damageBarColor(share: number, top: boolean): string {
-  if (top) return '#a855f7'
+/** Bar colour for a damage share: light→dark red as it grows, purple top / orange bottom. */
+export function damageBarColor(share: number, top: boolean, bottom: boolean): string {
+  if (top) return HILITE_TOP
+  if (bottom) return HILITE_BOTTOM
   const t = Math.max(0, Math.min(1, share))
   const light = Math.round(60 - t * 27) // 60% → 33%
   const sat = Math.round(70 + t * 12) // 70% → 82%
