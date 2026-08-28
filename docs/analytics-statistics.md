@@ -51,7 +51,8 @@ report is `INDEX.filter(a => a.nameKey === name.toLowerCase())`.
 
 Fields captured per appearance: name, file path, start time, map (version suffix
 stripped), duration, format (`8v8` etc.), side (blue/red), faction, result,
-OS, colour, start-grid cell, and the raw stat fields
+OS, colour, normalised start position (`startNX/NY`, when a bar-rts record is
+cached — see §5b), and the raw stat fields
 `metalProduced`, `metalExcess`, `energyProduced`, `energyExcess`,
 `damageDealt`, `damageReceived`, `unitsProduced`, `cmdPerMin`, plus the lists of
 allies and enemies (human names only).
@@ -206,21 +207,47 @@ using each appearance's `durationMs`:
 Each column shows the bucket's **win rate** (bar height = `winRate × 100%`,
 same colour thresholds) and its **game count**.
 
-### Start position
+## 5b. Start positions (per-map heatmap)
 
-A 3 columns × 2 rows grid over the map (cells 0–5, row-major: N-left, N-centre,
-N-right, S-left, S-centre, S-right).
+Its own full-width card below the breakdown row. One minimap thumbnail per map,
+most-played first (up to 4), with a dot for each place the player deploys.
 
-* Cell for an appearance comes from the player's **start position** normalised to
-  the map (`startPos.x / (mapWidth × 512)`, same for `z`), falling back to the
-  **ally-team start box** centroid. Column split at ⅓ / ⅔, row split at ½.
-* Each cell shows `count / (appearances with a readable cell)` as a percentage;
-  background opacity scales with that fraction.
-* **Splits** below:
-  * `north` = cells 0+1+2, `south` = `1 − north`
-  * `centre` = cells 1+4 (the middle column), `flank` = `1 − centre`
-* Appearances with no readable start box/position are counted in
-  "*N excluded — unreadable start boxes*" and left out of the percentages.
+### Where the position comes from
+
+The local demo only carries the **ally-team start box** — the whole team's half
+of the map, shared by every teammate — so it cannot tell one player's spot from
+another's. Per-player start positions are read instead from the **cached
+bar-rts.com record** (`AllyTeams[].Players[].startPos` + `Map.width/height`),
+which is stored in `store.apiCache` when you open that replay in the detail view
+with **online enrichment** on. Games with no cached record contribute nothing to
+this card (`serverStartPositions` in [`analytics.ts`](../src/main/analytics.ts)).
+
+* Normalised coords: `x = startPos.x / (Map.width × 512)`,
+  `y = startPos.z / (Map.height × 512)`, clamped to 0–1. `(0, 0)` is the engine's
+  "unset" sentinel and is skipped.
+
+### Clustering into spots
+
+Per map, the player's deploy points are clustered by proximity
+(`clusterStartSpots`): greedy assignment to the nearest existing cluster within
+`SPOT_MERGE_DIST = 0.055` normalised units (recentred on its running mean as
+points join), then up to 6 merge passes combining any two clusters that drifted
+within that distance of each other.
+
+A map needs **≥ 8 positioned games** (`START_MAP_MIN_GAMES`) to get a heatmap.
+
+### What each dot shows
+
+| Encoding | Meaning |
+|---|---|
+| position | cluster centroid, as a % of map width/height |
+| **size** | `12 + (spotGames / mostGamesOnThatMap) × 20` px — biggest = your usual spot |
+| **colour** | win rate from that spot — green ≥ 54%, red ≤ 46%, yellow between (neutral when the sample is thin) |
+| number | games played from that spot |
+| hover | `N games · WR% win rate` |
+
+The card footer reports how many scoped games had **no** start position available
+(`startNoData`).
 
 ---
 
@@ -291,9 +318,8 @@ averageX          = mean(scoped appearances' X)
 baselineX         = mean(ALL indexed appearances' X)   # ignores scope
 delta (normal)    = (averageX - baselineX) / baselineX * 100      # "%"
 delta (efficiency)= averageX - baselineX                          # "pt"
-startCell         = 3x2 grid index from normalised start pos / start-box centroid
-north / south     = share of appearances in the top / bottom grid row
-centre / flank    = share in / outside the middle grid column
+startNX / startNY = bar-rts startPos.{x,z} / (Map.{width,height} * 512), clamped 0..1
+startSpot         = proximity cluster of a player's startNX/NY on one map (< 0.055)
 share (bars)      = groupGames / max(groupGames across the breakdown)
 thinSample        = scoped.length < 20
 ```
@@ -307,6 +333,8 @@ thinSample        = scoped.length < 20
 | Form chart window | last 50 games |
 | Rolling average window | 10 games |
 | Maps: min games / shown | 20 / top 6 |
+| Start heatmap: min positioned games / maps shown | 8 / top 4 |
+| Start spot cluster / merge distance | 0.055 normalised map units |
 | Company: min shared games / shown | 15 / top 4 |
 | Stats snapshot period (engine) | 15 s |
 | `90d` scope window | 90 days |

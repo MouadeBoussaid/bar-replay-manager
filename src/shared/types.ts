@@ -198,6 +198,22 @@ export interface ReportMap {
   winRate: number | null
 }
 
+export interface ReportStartSpot {
+  /** Normalised map coords, 0..1: x east, y south. */
+  x: number
+  y: number
+  games: number
+  winRate: number | null
+}
+
+export interface ReportStartMap {
+  name: string
+  /** Games on this map that had a usable per-player start position. */
+  games: number
+  /** Clustered deploy spots, most-used first. */
+  spots: ReportStartSpot[]
+}
+
 export interface ReportCompanyRow {
   name: string
   color: string
@@ -242,11 +258,10 @@ export interface PlayerReport {
   factions: ReportBar[]
   sizes: ReportBar[]
   durations: ReportDurationBucket[]
-  /** 6 fractions (0..1), row-major: N-left, N-centre, N-right, S-left, S-centre, S-right. */
-  startCells: number[]
-  startSplits: { north: number; south: number; flank: number; centre: number }
-  /** Replays excluded from the start grid for unreadable boxes. */
-  startExcluded: number
+  /** Per-map start-position heatmaps, most-played map first. */
+  startMaps: ReportStartMap[]
+  /** Scoped games with no known per-player start position (no bar-rts record cached). */
+  startNoData: number
   maps: ReportMap[]
   mapsHasMore: boolean
   company: { withP: ReportCompanyRow[]; vsP: ReportCompanyRow[] }

@@ -6,9 +6,12 @@ import type {
   ReportAppearance,
   ReportAverage,
   ReportBar,
-  ReportCompanyRow
+  ReportCompanyRow,
+  ReportStartMap,
+  ReportStartSpot
 } from '../shared/types'
 import { teamColorNames } from '../shared/team-colors'
+import { store } from './store'
 
 /** One player's line in one replay — the unit the analytics tab aggregates over. */
 interface Appearance {
@@ -24,7 +27,9 @@ interface Appearance {
   result: GameResult
   os: number | null
   rgb: string | null
-  startCell: number | null
+  /** Normalised per-player start position from a cached bar-rts record, 0..1. */
+  startNX?: number
+  startNY?: number
   metalProduced?: number
   metalExcess?: number
   energyProduced?: number
@@ -67,6 +72,7 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
   if (meta.parseError || meta.allyTeams.length === 0 || isAiReplay(meta)) return []
   const colors = teamColorNames(meta)
   const fmt = meta.allyTeams.map((t) => t.players.length).join('v')
+  const serverPos = serverStartPositions(meta.gameId)
   const out: Appearance[] = []
 
   meta.allyTeams.forEach((team, ti) => {
@@ -74,11 +80,11 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
     const enemies = meta.allyTeams
       .filter((_, j) => j !== ti)
       .flatMap((t) => t.players.filter((p) => !p.isAi).map((p) => p.name))
-    const cell = cellFromBox(team.startBox)
 
     for (const p of team.players) {
       if (p.isAi) continue
       const s = p.stats
+      const pos = serverPos.get(p.name.toLowerCase())
       out.push({
         name: p.name,
         nameKey: p.name.toLowerCase(),
@@ -92,7 +98,8 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
         result: team.won === true ? 'win' : team.won === false ? 'loss' : 'undecided',
         os: typeof p.skillOS === 'number' ? p.skillOS : null,
         rgb: p.rgbColor ?? null,
-        startCell: cellFromStartPos(p.startPos, meta.map) ?? cell,
+        startNX: pos?.x,
+        startNY: pos?.y,
         metalProduced: s?.metalProduced,
         metalExcess: s?.metalExcess,
         energyProduced: s?.energyProduced,
@@ -123,27 +130,47 @@ function stripMapVersion(name: string): string {
   return (m ? m[1]! : name).trim()
 }
 
-/** 3×2 grid cell (0..5) from a normalised start rect centroid, or null. */
-function cellFromBox(
-  box: { left: number; top: number; right: number; bottom: number } | undefined
-): number | null {
-  if (!box) return null
-  return cellFromXY((box.left + box.right) / 2, (box.top + box.bottom) / 2)
+/**
+ * Per-player start positions for one game, normalised to 0..1 map coords, read
+ * from the cached bar-rts.com record (populated when the user opens the replay
+ * with online enrichment on). Empty when nothing is cached for this game. The
+ * local demo has only the shared ally-team box, so this is the only source of
+ * spot-level positions.
+ */
+function serverStartPositions(gameId: string | null): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>()
+  if (!gameId) return out
+  const data = store.getApiCache(gameId)?.data as
+    | { Map?: { width?: unknown; height?: unknown }; AllyTeams?: unknown }
+    | null
+    | undefined
+  if (!data || typeof data !== 'object') return out
+  const w = Number(data.Map?.width)
+  const h = Number(data.Map?.height)
+  if (!(w > 0) || !(h > 0)) return out
+  const allyTeams = Array.isArray(data.AllyTeams) ? data.AllyTeams : []
+  for (const at of allyTeams) {
+    const players = Array.isArray((at as { Players?: unknown })?.Players)
+      ? (at as { Players: unknown[] }).Players
+      : []
+    for (const p of players) {
+      const rec = p as { name?: unknown; startPos?: unknown; startpos?: unknown }
+      const raw = (rec.startPos ?? rec.startpos) as { x?: unknown; z?: unknown; y?: unknown } | undefined
+      if (!raw || typeof rec.name !== 'string') continue
+      const px = Number(raw.x)
+      const pz = Number(raw.z ?? raw.y)
+      if (!Number.isFinite(px) || !Number.isFinite(pz) || (px === 0 && pz === 0)) continue
+      out.set(rec.name.toLowerCase(), {
+        x: clamp01(px / (w * 512)),
+        y: clamp01(pz / (h * 512))
+      })
+    }
+  }
+  return out
 }
 
-function cellFromStartPos(
-  pos: { x: number; z: number } | undefined,
-  map: ReplayMeta['map']
-): number | null {
-  if (!pos || !map?.width || !map?.height) return null
-  return cellFromXY(pos.x / (map.width * 512), pos.z / (map.height * 512))
-}
-
-function cellFromXY(x: number, y: number): number | null {
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
-  const col = x < 1 / 3 ? 0 : x < 2 / 3 ? 1 : 2
-  const row = y < 0.5 ? 0 : 1
-  return row * 3 + col
+function clamp01(n: number): number {
+  return n < 0 ? 0 : n > 1 ? 1 : n
 }
 
 // ---- report ---------------------------------------------------------------
@@ -197,9 +224,8 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     factions: [],
     sizes: [],
     durations: [],
-    startCells: [0, 0, 0, 0, 0, 0],
-    startSplits: { north: 0, south: 0, flank: 0, centre: 0 },
-    startExcluded: 0,
+    startMaps: [],
+    startNoData: 0,
     maps: [],
     mapsHasMore: false,
     company: { withP: [], vsP: [] },
@@ -233,15 +259,8 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     return { label, games: g.length, winRate: winRateOf(g) }
   })
 
-  const withCell = scoped.filter((a) => a.startCell != null)
-  const cellCounts = [0, 0, 0, 0, 0, 0]
-  for (const a of withCell) cellCounts[a.startCell!]!++
-  const cn = withCell.length || 1
-  empty.startCells = cellCounts.map((c) => c / cn)
-  const north = (cellCounts[0]! + cellCounts[1]! + cellCounts[2]!) / cn
-  const centre = (cellCounts[1]! + cellCounts[4]!) / cn
-  empty.startSplits = { north, south: 1 - north, centre, flank: 1 - centre }
-  empty.startExcluded = scoped.length - withCell.length
+  empty.startMaps = buildStartMaps(scoped)
+  empty.startNoData = scoped.filter((a) => a.startNX == null || a.startNY == null).length
 
   const byMap = groupCount(scoped, (a) => a.mapName)
   const maps = [...byMap.entries()]
@@ -401,6 +420,92 @@ function groupCount<T>(rows: T[], keyOf: (r: T) => string): Map<string, T[]> {
     else m.set(k, [r])
   }
   return m
+}
+
+// ---- start positions ----------------------------------------------------
+
+/** Merge distance for clustering deploy points, in normalised map units. */
+const SPOT_MERGE_DIST = 0.055
+/** A map needs this many positioned games before it earns a heatmap. */
+const START_MAP_MIN_GAMES = 8
+/** Show at most this many maps. */
+const START_MAP_LIMIT = 4
+
+function buildStartMaps(scoped: Appearance[]): ReportStartMap[] {
+  const positioned = scoped.filter((a) => a.startNX != null && a.startNY != null)
+  return [...groupCount(positioned, (a) => a.mapName).entries()]
+    .filter(([, g]) => g.length >= START_MAP_MIN_GAMES)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, START_MAP_LIMIT)
+    .map(([name, g]) => ({ name, games: g.length, spots: clusterStartSpots(g) }))
+}
+
+/**
+ * Greedy proximity clustering of a player's deploy points on one map, followed
+ * by a merge pass for clusters that drift together. Each spot carries the games
+ * played from it and the win rate there.
+ */
+function clusterStartSpots(rows: Appearance[]): ReportStartSpot[] {
+  interface C {
+    x: number
+    y: number
+    rows: Appearance[]
+  }
+  const clusters: C[] = []
+  const recentre = (c: C): void => {
+    c.x = mean(c.rows.map((r) => r.startNX!))
+    c.y = mean(c.rows.map((r) => r.startNY!))
+  }
+
+  for (const a of rows) {
+    const x = a.startNX!
+    const y = a.startNY!
+    let best: C | null = null
+    let bestD = SPOT_MERGE_DIST
+    for (const c of clusters) {
+      const d = Math.hypot(c.x - x, c.y - y)
+      if (d < bestD) {
+        bestD = d
+        best = c
+      }
+    }
+    if (best) {
+      best.rows.push(a)
+      recentre(best)
+    } else {
+      clusters.push({ x, y, rows: [a] })
+    }
+  }
+
+  for (let pass = 0; pass < 6; pass++) {
+    let merged = false
+    for (let i = 0; i < clusters.length && !merged; i++) {
+      for (let j = i + 1; j < clusters.length; j++) {
+        const d = Math.hypot(clusters[i]!.x - clusters[j]!.x, clusters[i]!.y - clusters[j]!.y)
+        if (d < SPOT_MERGE_DIST) {
+          clusters[i]!.rows.push(...clusters[j]!.rows)
+          recentre(clusters[i]!)
+          clusters.splice(j, 1)
+          merged = true
+          break
+        }
+      }
+    }
+    if (!merged) break
+  }
+
+  return clusters
+    .map((c) => ({
+      x: round3(c.x),
+      y: round3(c.y),
+      games: c.rows.length,
+      winRate: winRateOf(c.rows)
+    }))
+    .sort((a, b) => b.games - a.games)
+}
+
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000
 }
 
 function companyRows(rows: Appearance[], field: 'allies' | 'enemies'): ReportCompanyRow[] {

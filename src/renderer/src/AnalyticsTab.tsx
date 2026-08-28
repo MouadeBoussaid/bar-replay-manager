@@ -3,10 +3,12 @@ import type {
   AnalyticsScope,
   PlayerReport,
   ReplayMeta,
-  ReportBar
+  ReportBar,
+  ReportStartMap
 } from '../../shared/types'
 import { fmtClock, fmtCompact } from './format'
 import { rankPlayerNames } from './nameMatch'
+import { useMapImage } from './useMapImage'
 
 interface Props {
   /** The selected replay (seeds the quick-pick chips), or null when none is selected. */
@@ -94,6 +96,7 @@ export function AnalyticsTab({ meta, playerName, onSetPlayer, onOpenReplay }: Pr
           <AveragesGrid report={report} />
           <FormOverTime report={report} onOpenReplay={onOpenReplay} />
           <BreakdownRow report={report} />
+          <StartHeatCard report={report} />
           <MapsCompanyRow report={report} />
           <Appearances report={report} onOpenReplay={onOpenReplay} />
         </>
@@ -403,7 +406,6 @@ function BreakdownRow({ report }: { report: PlayerReport }): JSX.Element {
     <div className="an-breakdown">
       <BarCard title="Faction" bars={report.factions} thin={report.thinSample} accent />
       <DurationCard report={report} />
-      <StartCard report={report} />
     </div>
   )
 }
@@ -483,37 +485,74 @@ function DurationCard({ report }: { report: PlayerReport }): JSX.Element {
   )
 }
 
-function StartCard({ report }: { report: PlayerReport }): JSX.Element {
-  const s = report.startSplits
+function StartHeatCard({ report }: { report: PlayerReport }): JSX.Element {
+  const noteNoData =
+    report.startNoData > 0
+      ? `${report.startNoData} game${report.startNoData === 1 ? '' : 's'} without a start position`
+      : ''
+
+  if (report.startMaps.length === 0) {
+    return (
+      <div className="an-card">
+        <div className="an-card-head">
+          <span className="an-section-title">Start positions</span>
+          <span className="an-sub">by map</span>
+        </div>
+        <div className="an-empty-line">
+          No per-map start data yet. Positions come from bar-rts.com records, cached when you
+          open a replay with online enrichment on — browse a few and they fill in here.
+          {noteNoData && ` (${noteNoData})`}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="an-card">
-      <div className="an-section-title">Start position</div>
-      <div className="an-start-grid">
-        {report.startCells.map((v, i) => (
-          <div
-            key={i}
-            className="an-start-cell"
-            style={{ background: `rgba(255,225,77,${(0.05 + v * 0.37).toFixed(3)})` }}
-          >
-            <span style={{ color: v > 0.25 ? '#fff' : 'rgba(255,255,255,.5)' }}>
-              {Math.round(v * 100)}%
-            </span>
-          </div>
+      <div className="an-card-head">
+        <span className="an-section-title">Start positions</span>
+        <span className="an-sub">where you deploy · per map · dot size = games, colour = win rate</span>
+      </div>
+      <div className="an-startmaps">
+        {report.startMaps.map((m) => (
+          <StartMapMini key={m.name} map={m} thin={report.thinSample} />
         ))}
       </div>
-      <div className="an-start-splits">
-        <div>
-          <span>north {Math.round(s.north * 100)}%</span>
-          <span>south {Math.round(s.south * 100)}%</span>
-        </div>
-        <div>
-          <span>flank {Math.round(s.flank * 100)}%</span>
-          <span>centre {Math.round(s.centre * 100)}%</span>
-        </div>
+      {noteNoData && <div className="an-foot-note">{noteNoData} — not shown</div>}
+    </div>
+  )
+}
+
+function StartMapMini({ map, thin }: { map: ReportStartMap; thin: boolean }): JSX.Element {
+  const photo = useMapImage(map.name, 'thumb')
+  const maxGames = Math.max(1, ...map.spots.map((s) => s.games))
+
+  return (
+    <div className="an-startmap">
+      <div className="an-startmap-frame">
+        {photo ? (
+          <img src={photo} alt="" className="an-startmap-img" />
+        ) : (
+          <div className="an-startmap-img an-startmap-noimg" />
+        )}
+        {map.spots.map((s, i) => {
+          const size = 12 + Math.round((s.games / maxGames) * 20)
+          return (
+            <span
+              key={i}
+              className={`an-startdot ${wrClass(s.winRate, thin)}`}
+              style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, width: size, height: size }}
+              title={`${s.games} game${s.games === 1 ? '' : 's'} · ${fmtWr(s.winRate)} win rate`}
+            >
+              <span className="an-startdot-n">{s.games}</span>
+            </span>
+          )
+        })}
       </div>
-      {report.startExcluded > 0 && (
-        <div className="an-foot-note">{report.startExcluded} excluded — unreadable start boxes</div>
-      )}
+      <div className="an-startmap-cap">
+        <span className="an-map-name">{map.name}</span>
+        <span className="an-startmap-games">{map.games} g</span>
+      </div>
     </div>
   )
 }
