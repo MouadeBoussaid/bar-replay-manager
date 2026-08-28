@@ -23,6 +23,9 @@ interface Props {
   onOpenInFolder: () => void
   /** Select a different replay in the left list (used by the analytics tab). */
   onSelectReplay: (filePath: string) => void
+  /** User-analytics lookup name (session state, separate from the perspective player). */
+  analyticsPlayer: string
+  onSetAnalyticsPlayer: (name: string) => void
 }
 
 const TABS = [
@@ -48,45 +51,50 @@ export function DetailPane(props: Props): JSX.Element {
     onToggleFavourite,
     onSaveFavourite,
     onOpenInFolder,
-    onSelectReplay
+    onSelectReplay,
+    analyticsPlayer,
+    onSetAnalyticsPlayer
   } = props
 
   const [tab, setTab] = useState<TabId>('overview')
-  useEffect(() => setTab('overview'), [listItem?.filePath])
+  const [emptyAnalytics, setEmptyAnalytics] = useState(false)
+  useEffect(() => {
+    if (listItem) {
+      setTab('overview')
+      setEmptyAnalytics(false)
+    }
+  }, [listItem?.filePath])
 
   const mapName = meta?.map.name ?? listItem?.mapName ?? null
   const heroPhoto = useMapImage(mapName, 'mq')
 
   if (!listItem || !mapName) {
-    return (
-      <section className="detail-pane">
-        <div className="tab-bar">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={`tab ${tab === t.id ? 'tab-active' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
+    if (emptyAnalytics) {
+      return (
+        <section className="detail-pane">
+          <div className="empty-analytics-bar">
+            <button className="btn-ghost" onClick={() => setEmptyAnalytics(false)}>
+              ‹ Back
             </button>
-          ))}
-        </div>
-        <div className="tab-panel">
-          {tab === 'analytics' ? (
+          </div>
+          <div className="tab-panel">
             <AnalyticsTab
               meta={null}
-              playerName={settings?.analyticsPlayerName ?? ''}
-              onSetPlayer={(n) => onToggleSetting({ analyticsPlayerName: n })}
+              playerName={analyticsPlayer}
+              onSetPlayer={onSetAnalyticsPlayer}
               onOpenReplay={onSelectReplay}
             />
-          ) : (
-            <div className="detail-empty">
-              <p>Select a replay from the list.</p>
-              <button className="btn-ghost" onClick={() => setTab('analytics')}>
-                or open User analytics →
-              </button>
-            </div>
-          )}
+          </div>
+        </section>
+      )
+    }
+    return (
+      <section className="detail-pane">
+        <div className="detail-empty">
+          <p>Select a replay.</p>
+          <button className="detail-empty-link" onClick={() => setEmptyAnalytics(true)}>
+            or look up a player in User analytics
+          </button>
         </div>
       </section>
     )
@@ -203,8 +211,8 @@ export function DetailPane(props: Props): JSX.Element {
         ) : tab === 'analytics' ? (
           <AnalyticsTab
             meta={meta}
-            playerName={settings?.analyticsPlayerName ?? ''}
-            onSetPlayer={(n) => onToggleSetting({ analyticsPlayerName: n })}
+            playerName={analyticsPlayer}
+            onSetPlayer={onSetAnalyticsPlayer}
             onOpenReplay={onSelectReplay}
           />
         ) : (

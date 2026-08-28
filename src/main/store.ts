@@ -41,7 +41,7 @@ const DEFAULTS: DbShape = {
     replaysFolder: null,
     onlineEnrich: true,
     listPaneWidth: 392,
-    analyticsPlayerName: ''
+    perspectivePlayerName: ''
   },
   favourites: {},
   cache: {},

@@ -4,6 +4,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { DetailPane } from './DetailPane'
 import { fmtGigabytes, osTierRank } from './format'
 import { ReplayList, type SortKey } from './ReplayList'
+import { SettingsDialog } from './SettingsDialog'
 import { TitleBar } from './TitleBar'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
 
@@ -24,6 +25,9 @@ export function App(): JSX.Element {
   const [detailLoading, setDetailLoading] = useState(false)
 
   const [showClear, setShowClear] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  /** User-analytics lookup name — session only, unrelated to the perspective player. */
+  const [analyticsPlayer, setAnalyticsPlayer] = useState('')
   const [pendingDelete, setPendingDelete] = useState<ReplayListItem | null>(null)
   const [pendingDrawDelete, setPendingDrawDelete] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -307,7 +311,7 @@ export function App(): JSX.Element {
 
   return (
     <div className="app">
-      <TitleBar />
+      <TitleBar onOpenSettings={() => setShowSettings(true)} />
       <div className="workspace" style={{ ['--pane-width' as string]: `${paneWidth}px` }}>
         <ReplayList
           items={filtered}
@@ -315,7 +319,7 @@ export function App(): JSX.Element {
           totalBytes={totalBytes}
           nonFavCount={nonFavCount}
           drawCount={drawItems.length}
-          groupByPlayer={settings?.analyticsPlayerName ?? ''}
+          groupByPlayer={settings?.perspectivePlayerName ?? ''}
           selectedId={selected}
           folder={folder}
           lastScanAt={lastScanAt}
@@ -359,10 +363,20 @@ export function App(): JSX.Element {
           onSaveFavourite={(d) => void saveFavourite(d)}
           onOpenInFolder={() => selected && void window.api.openInFolder(selected)}
           onSelectReplay={setSelected}
+          analyticsPlayer={analyticsPlayer}
+          onSetAnalyticsPlayer={setAnalyticsPlayer}
         />
       </div>
 
       {toast && <div className="toast">{toast}</div>}
+
+      {showSettings && (
+        <SettingsDialog
+          player={settings?.perspectivePlayerName ?? ''}
+          onSave={(name) => void patchSettings({ perspectivePlayerName: name })}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {showClear && folder && (
         <ClearDialog

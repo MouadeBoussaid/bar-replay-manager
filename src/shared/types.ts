@@ -16,10 +16,11 @@ export interface Settings {
   /** Width in px of the left list pane; clamped to [320, 520] by the renderer. */
   listPaneWidth: number
   /**
-   * Player name for the User analytics tab. When set, the replay list splits into
-   * "My replays" (this player took part) and "Watched replays". Empty = no split.
+   * The "perspective" the manager is viewed from — a specific player. When set,
+   * the replay list splits into "My replays" (this player took part) and
+   * "Watched replays". Only changed from the settings dialog. Empty = no split.
    */
-  analyticsPlayerName: string
+  perspectivePlayerName: string
 }
 
 /** Per-player end-game statistics from the demo trailer (offline). */

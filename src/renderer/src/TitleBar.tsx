@@ -6,7 +6,7 @@ import iconUrl from './assets/icon.png'
  * region (`-webkit-app-region: drag`); interactive children opt back out via the
  * `.no-drag` class in styles.css.
  */
-export function TitleBar(): JSX.Element {
+export function TitleBar({ onOpenSettings }: { onOpenSettings: () => void }): JSX.Element {
   const [maximized, setMaximized] = useState(false)
 
   useEffect(() => window.api.onWindowMaximizeChange(setMaximized), [])
@@ -16,6 +16,14 @@ export function TitleBar(): JSX.Element {
       <img className="titlebar-mark" src={iconUrl} alt="" aria-hidden />
       <span className="titlebar-title">BAR Replay Browser</span>
       <div className="titlebar-spacer" />
+      <button
+        className="tb-gear no-drag"
+        title="Settings"
+        aria-label="Settings"
+        onClick={onOpenSettings}
+      >
+        ⚙
+      </button>
       <div className="titlebar-controls no-drag">
         <button
           className="tb-btn"
