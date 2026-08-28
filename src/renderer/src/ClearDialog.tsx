@@ -43,9 +43,9 @@ export function ClearDialog({ folder, onClose, onDone }: Props): JSX.Element {
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Clear non-favourited replays</h2>
+        <h2>Delete non-favourited replays?</h2>
 
-        {!preview && !error && <p>Scanning folder…</p>}
+        {!preview && !error && <p>Checking which replays would be removed…</p>}
 
         {error && <p className="error">{error}</p>}
 

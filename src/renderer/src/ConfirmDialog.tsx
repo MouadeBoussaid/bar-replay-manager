@@ -18,13 +18,13 @@ export function ConfirmDialog({
   onCancel
 }: Props): JSX.Element {
   useEffect(() => {
+    // Esc cancels. Confirming a delete needs an explicit click — no Enter shortcut.
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onCancel()
-      if (e.key === 'Enter') onConfirm()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, onConfirm])
+  }, [onCancel])
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
