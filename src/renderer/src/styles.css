@@ -1195,8 +1195,13 @@ body.dragging-divider * {
 /* ---------------------------------------------------------------- graphs tab */
 .graphs-tab {
   font: 400 11px var(--sans);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 .graph-controls {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1227,6 +1232,8 @@ body.dragging-divider * {
 
 .graph-plot {
   position: relative;
+  flex: 1 1 auto;
+  min-height: 240px;
   width: 100%;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
@@ -1300,10 +1307,13 @@ body.dragging-divider * {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
 .graph-legend {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   gap: 5px 6px;
   margin-top: 10px;
+  max-height: 96px;
+  overflow-y: auto;
 }
 .graph-chip {
   display: inline-flex;

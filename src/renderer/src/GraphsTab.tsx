@@ -51,7 +51,7 @@ const FIELD_LABEL: Record<string, string> = Object.fromEntries(
   FIELD_GROUPS.flatMap((g) => g.items.map((i) => [i.key, i.label]))
 )
 
-const H = 340
+const MIN_H = 240
 const M = { top: 14, right: 14, bottom: 26, left: 58 }
 
 export function GraphsTab({ meta }: Props): JSX.Element {
@@ -62,6 +62,7 @@ export function GraphsTab({ meta }: Props): JSX.Element {
   const [hidden, setHidden] = useState<Set<number>>(new Set())
   const [hoverI, setHoverI] = useState<number | null>(null)
   const [width, setWidth] = useState(760)
+  const [plotH, setPlotH] = useState(360)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -81,9 +82,13 @@ export function GraphsTab({ meta }: Props): JSX.Element {
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth))
+    const measure = (): void => {
+      setWidth(el.clientWidth)
+      setPlotH(el.clientHeight)
+    }
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
-    setWidth(el.clientWidth)
+    measure()
     return () => ro.disconnect()
   }, [data])
 
@@ -119,6 +124,7 @@ export function GraphsTab({ meta }: Props): JSX.Element {
   const times = data.times
   const n = times.length
   const tMax = times[n - 1] || 1
+  const H = Math.max(MIN_H, plotH)
   const pw = Math.max(120, width - M.left - M.right)
   const ph = H - M.top - M.bottom
 
