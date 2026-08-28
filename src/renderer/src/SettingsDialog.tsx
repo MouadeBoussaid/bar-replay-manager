@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { rankPlayerNames } from './nameMatch'
 
 interface Props {
   /** Current perspective player (persisted). */
@@ -25,9 +26,8 @@ export function SettingsDialog({ player, onSave, onClose }: Props): JSX.Element 
   }, [onClose])
 
   const matches = useMemo(() => {
-    const q = value.trim().toLowerCase()
-    if (!q || names.includes(value)) return []
-    return names.filter((n) => n.toLowerCase().includes(q)).slice(0, 8)
+    if (names.includes(value)) return []
+    return rankPlayerNames(names, value, 10)
   }, [value, names])
 
   const save = (): void => {

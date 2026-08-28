@@ -6,6 +6,7 @@ import type {
   ReportBar
 } from '../../shared/types'
 import { fmtClock, fmtCompact } from './format'
+import { rankPlayerNames } from './nameMatch'
 
 interface Props {
   /** The selected replay (seeds the quick-pick chips), or null when none is selected. */
@@ -165,11 +166,7 @@ function PlayerSearch({
 }): JSX.Element {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
-  const matches = useMemo(() => {
-    const s = q.trim().toLowerCase()
-    if (!s) return []
-    return names.filter((n) => n.toLowerCase().includes(s)).slice(0, 8)
-  }, [q, names])
+  const matches = useMemo(() => rankPlayerNames(names, q, 10), [q, names])
 
   return (
     <div className="an-search">
