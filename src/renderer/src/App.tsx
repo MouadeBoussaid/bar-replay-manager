@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ClearDialog } from './ClearDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DetailPane } from './DetailPane'
-import { osTierRank } from './format'
+import { fmtGigabytes, osTierRank } from './format'
 import { ReplayList, type SortKey } from './ReplayList'
 import { TitleBar } from './TitleBar'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
@@ -25,6 +25,7 @@ export function App(): JSX.Element {
 
   const [showClear, setShowClear] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<ReplayListItem | null>(null)
+  const [pendingDrawDelete, setPendingDrawDelete] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [playState, setPlayState] = useState<'idle' | 'launching' | 'ok'>('idle')
@@ -176,6 +177,23 @@ export function App(): JSX.Element {
     }
   }
 
+  const confirmDeleteDraws = async (): Promise<void> => {
+    setPendingDrawDelete(false)
+    const victims = drawItems.map((i) => i.filePath)
+    if (victims.length === 0) return
+    try {
+      const { moved, failed } = await window.api.trashReplays(victims)
+      if (selected && victims.includes(selected)) setSelected(null)
+      await scan(folder)
+      flashToast(
+        `Moved ${moved} undecided game${moved === 1 ? '' : 's'} to the Recycle Bin` +
+          (failed.length ? ` — ${failed.length} could not be moved` : '')
+      )
+    } catch (e) {
+      flashToast(`Could not delete: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     let out = items
@@ -214,6 +232,18 @@ export function App(): JSX.Element {
 
   const totalBytes = useMemo(() => items.reduce((s, i) => s + i.fileSize, 0), [items])
   const nonFavCount = useMemo(() => items.filter((i) => !i.isFavourite).length, [items])
+  // Finished games with no recorded winner, favourites excluded.
+  const drawItems = useMemo(
+    () =>
+      items.filter(
+        (i) =>
+          !i.isFavourite &&
+          i.parsed &&
+          i.endedNormally === true &&
+          i.winnerTeamOrdinal == null
+      ),
+    [items]
+  )
 
   const selectedItem = useMemo(
     () => items.find((i) => i.filePath === selected) ?? null,
@@ -278,6 +308,7 @@ export function App(): JSX.Element {
           totalItems={items.length}
           totalBytes={totalBytes}
           nonFavCount={nonFavCount}
+          drawCount={drawItems.length}
           selectedId={selected}
           folder={folder}
           lastScanAt={lastScanAt}
@@ -293,6 +324,7 @@ export function App(): JSX.Element {
           onRefresh={() => void scan(folder)}
           onChooseFolder={() => void changeFolder()}
           onClearNonFavourites={() => setShowClear(true)}
+          onDeleteDraws={() => setPendingDrawDelete(true)}
           onKeyNav={onListKeyNav}
         />
 
@@ -354,6 +386,24 @@ export function App(): JSX.Element {
           danger
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => void confirmDeleteOne()}
+        />
+      )}
+
+      {pendingDrawDelete && (
+        <ConfirmDialog
+          title="Delete undecided games?"
+          body={
+            <>
+              Move <strong>{drawItems.length}</strong> game
+              {drawItems.length === 1 ? '' : 's'} that ended without a winner (
+              <strong>{fmtGigabytes(drawItems.reduce((s, i) => s + i.fileSize, 0))}</strong>)
+              to the Windows Recycle Bin? Favourited replays are kept.
+            </>
+          }
+          confirmLabel="Move to Recycle Bin"
+          danger
+          onCancel={() => setPendingDrawDelete(false)}
+          onConfirm={() => void confirmDeleteDraws()}
         />
       )}
     </div>

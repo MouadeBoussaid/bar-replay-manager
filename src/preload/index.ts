@@ -10,6 +10,7 @@ const api: Api = {
   getReplayDetail: (filePath) => ipcRenderer.invoke('replay:detail', filePath),
   playReplay: (filePath) => ipcRenderer.invoke('replay:play', filePath),
   trashReplay: (filePath) => ipcRenderer.invoke('replay:trash', filePath),
+  trashReplays: (filePaths) => ipcRenderer.invoke('replay:trashMany', filePaths),
   getMapImage: (name, size) => ipcRenderer.invoke('map:image', name, size),
   getMapInfo: (name) => ipcRenderer.invoke('map:info', name),
   getReplayGraph: (filePath) => ipcRenderer.invoke('replay:graph', filePath),

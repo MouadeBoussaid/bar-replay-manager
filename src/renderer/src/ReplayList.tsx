@@ -29,6 +29,7 @@ interface Props {
   totalItems: number
   totalBytes: number
   nonFavCount: number
+  drawCount: number
   selectedId: string | null
   folder: string | null
   lastScanAt: number | null
@@ -44,6 +45,7 @@ interface Props {
   onRefresh: () => void
   onChooseFolder: () => void
   onClearNonFavourites: () => void
+  onDeleteDraws: () => void
   onKeyNav: (dir: 'up' | 'down' | 'home' | 'end' | 'play' | 'delete') => void
 }
 
@@ -53,6 +55,7 @@ export function ReplayList(props: Props): JSX.Element {
     totalItems,
     totalBytes,
     nonFavCount,
+    drawCount,
     selectedId,
     folder,
     lastScanAt,
@@ -68,6 +71,7 @@ export function ReplayList(props: Props): JSX.Element {
     onRefresh,
     onChooseFolder,
     onClearNonFavourites,
+    onDeleteDraws,
     onKeyNav
   } = props
 
@@ -229,6 +233,18 @@ export function ReplayList(props: Props): JSX.Element {
           onClick={onClearNonFavourites}
         >
           <span aria-hidden>🗑</span> Delete non-favourites
+        </button>
+        <button
+          className="delete-nonfav"
+          disabled={!folder || drawCount === 0}
+          title={
+            drawCount === 0
+              ? 'No undecided games (excluding favourites)'
+              : `${drawCount} undecided game${drawCount === 1 ? '' : 's'}`
+          }
+          onClick={onDeleteDraws}
+        >
+          <span aria-hidden>🗑</span> Delete draws
         </button>
         <span className="list-total">
           {totalItems} files · {fmtGigabytes(totalBytes)}

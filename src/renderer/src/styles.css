@@ -432,8 +432,8 @@ body.dragging-divider * {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   padding: 9px 12px;
   background: var(--bg-list-footer);
   border-top: 1px solid var(--border-subtle);
@@ -441,12 +441,12 @@ body.dragging-divider * {
 .delete-nonfav {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: var(--danger-bg);
   border: 1px solid var(--danger-border);
   border-radius: 3px;
-  padding: 6px 10px;
-  font: 600 11px var(--sans);
+  padding: 6px 9px;
+  font: 600 10.5px var(--sans);
   color: var(--danger-text);
   cursor: pointer;
   transition: background 120ms ease-out;
@@ -459,6 +459,7 @@ body.dragging-divider * {
   cursor: default;
 }
 .list-total {
+  margin-left: auto;
   font: 400 10.5px var(--mono);
   color: var(--text-faint);
 }

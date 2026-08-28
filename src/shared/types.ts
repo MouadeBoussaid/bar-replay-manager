@@ -179,6 +179,8 @@ export interface Api {
   playReplay(filePath: string): Promise<PlayLaunchResult>
   /** Move a single replay file to the Recycle Bin. */
   trashReplay(filePath: string): Promise<void>
+  /** Move several replay files to the Recycle Bin. */
+  trashReplays(filePaths: string[]): Promise<{ moved: number; failed: string[] }>
   /**
    * Minimap texture for a map (by script name) as a `data:` URL, fetched from the
    * bar-rts map API and cached on disk. Null when unknown or offline.

@@ -50,6 +50,20 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     await shell.trashItem(filePath)
   })
 
+  ipcMain.handle('replay:trashMany', async (_e, filePaths: string[]) => {
+    const failed: string[] = []
+    let moved = 0
+    for (const p of filePaths) {
+      try {
+        await shell.trashItem(p)
+        moved++
+      } catch {
+        failed.push(basename(p))
+      }
+    }
+    return { moved, failed }
+  })
+
   ipcMain.on('window:minimize', () => getWindow()?.minimize())
   ipcMain.on('window:toggleMaximize', () => {
     const win = getWindow()
