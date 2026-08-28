@@ -1,5 +1,5 @@
 import type { PlayerMeta, PlayerStats, ReplayMeta } from '../../shared/types'
-import { fmtK } from './format'
+import { fmtCompact } from './format'
 import { buildRosters, teamColorNames, teamLabel } from './players'
 
 interface Props {
@@ -135,14 +135,14 @@ function cell(
   if (c.key === 'efficiency') return efficiency(s.damageDealt, s.damageReceived)
   const v = s[c.key]
   if (v == null) return '—'
-  return c.kind === 'k' ? fmtK(v) : v.toLocaleString()
+  return c.kind === 'k' ? fmtCompact(v) : v.toLocaleString()
 }
 
 function totalCell(t: Totals, c: (typeof COLS)[number]): string {
   if (c.key === 'efficiency') return efficiency(t.damageDealt, t.damageReceived)
   if (c.key === 'cmdPerMin') return t.rated > 0 ? Math.round((t.cmdPerMin ?? 0)).toLocaleString() : '—'
   const v = t[c.key as keyof PlayerStats] as number
-  return c.kind === 'k' ? fmtK(v) : v.toLocaleString()
+  return c.kind === 'k' ? fmtCompact(v) : v.toLocaleString()
 }
 
 function efficiency(dealt: number, received: number): string {
