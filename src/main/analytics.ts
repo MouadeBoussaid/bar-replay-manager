@@ -219,7 +219,7 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
   empty.os = [...scoped].reverse().find((a) => a.os != null)?.os ?? null
 
   empty.averages = buildAverages(scoped)
-  empty.form = { metrics: FORM_METRICS, games: scoped.slice(-40).map(formGame) }
+  empty.form = { metrics: FORM_METRICS, games: scoped.slice(-50).map(formGame) }
   empty.factions = groupBars(scoped, (a) => a.faction, {
     order: ['Armada', 'Cortex', 'Legion', 'Random'],
     meta: (label) => FACTION_META[label] ?? { letter: label[0] ?? '?', color: '#9aa0ac' }
