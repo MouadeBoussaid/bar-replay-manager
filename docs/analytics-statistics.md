@@ -52,7 +52,7 @@ report is `INDEX.filter(a => a.nameKey === name.toLowerCase())`.
 Fields captured per appearance: name, file path, start time, map (version suffix
 stripped), duration, format (`8v8` etc.), side (blue/red), faction, result,
 OS, colour, normalised start position (`startNX/NY`, when a bar-rts record is
-cached — see §5b), start-position `role` (see §5 · Positions), and the raw stat
+cached — see §5b), start-position `role` (see §5b · Roles), and the raw stat
 fields
 `metalProduced`, `metalExcess`, `energyProduced`, `energyExcess`,
 `damageDealt`, `damageReceived`, `unitsProduced`, `cmdPerMin`, plus the lists of
@@ -193,24 +193,6 @@ Armada → Cortex → Legion → Random.
 * **bar width** — `games / (max games on any one faction)`, so the most-played
   faction fills the track.
 
-### Positions (start-position role mix)
-
-Same bar layout as Faction, one bar per **role** the player has deployed to,
-ordered `air → air/front → front → front/tech → front/sea → tech → sea/tech → sea`.
-
-* A game's role comes from `beyond-all-reason/maps-metadata`: the maps team
-  curates a `role` (`air / front / tech / sea` + slashed combos) for every
-  labelled spawn point, per team-size config. We snap the player's **bar-rts
-  start position** to the nearest labelled spawn (within ~2600 elmos) for the
-  config matching the game's team size, and take that spawn's role
-  ([`roleForPosition`](../src/main/map-roles.ts)). Data is a trimmed snapshot in
-  [`src/main/map-roles.data.json`](../src/main/map-roles.data.json), regenerated
-  by [`scripts/fetch-map-roles.mjs`](../scripts/fetch-map-roles.mjs) (~64 maps).
-* `N g`, win rate, bar width — exactly as Faction.
-* **`N not classified`** footnote — scoped games with no bar-rts position, or on a
-  map the metadata doesn't cover. These are excluded from the bars, not spread
-  across them.
-
 ### Win rate by length
 
 Four fixed duration buckets ([`DURATION_BUCKETS`](../src/main/analytics.ts)),
@@ -226,10 +208,16 @@ using each appearance's `durationMs`:
 Each column shows the bucket's **win rate** (bar height = `winRate × 100%`,
 same colour thresholds) and its **game count**.
 
-## 5b. Start positions (per-map heatmap)
+## 5b. Start positions (per-map)
 
-Its own full-width card below the breakdown row. One minimap thumbnail per map,
-most-played first (up to 4), with a dot for each place the player deploys.
+Its own full-width card below the breakdown row. **Everything here is per map** —
+spots are only ever ranked and win-rated against the *other spots on that same
+map*, never pooled across maps (an "air" spot on one map is a different place
+from "air" on another).
+
+One row per map, most-played first (up to 6, min **6 positioned games** —
+`START_MAP_MIN_GAMES` / `START_MAP_LIMIT`). Each row = the map's real minimap
+texture with numbered dots, next to a ranked list of that map's spots.
 
 ### Where the position comes from
 
@@ -237,13 +225,15 @@ The local demo only carries the **ally-team start box** — the whole team's hal
 of the map, shared by every teammate — so it cannot tell one player's spot from
 another's. Per-player start positions are read instead from the **cached
 bar-rts.com record** (`AllyTeams[].Players[].startPos` + `Map.width/height`),
-which is stored in `store.apiCache` when you open that replay in the detail view
-with **online enrichment** on. Games with no cached record contribute nothing to
-this card (`serverStartPositions` in [`analytics.ts`](../src/main/analytics.ts)).
+stored in `store.apiCache` when you open that replay with **online enrichment**
+on. Games with no cached record contribute nothing here (`serverStartPositions`
+in [`analytics.ts`](../src/main/analytics.ts)).
 
-* Normalised coords: `x = startPos.x / (Map.width × 512)`,
+* Normalised coords for plotting: `x = startPos.x / (Map.width × 512)`,
   `y = startPos.z / (Map.height × 512)`, clamped to 0–1. `(0, 0)` is the engine's
   "unset" sentinel and is skipped.
+* The minimap texture is fetched with the map's **full name** (latest version
+  seen in the group), same path as the Overview map panel (`useMapImage`).
 
 ### Clustering into spots
 
@@ -251,23 +241,36 @@ Per map, the player's deploy points are clustered by proximity
 (`clusterStartSpots`): greedy assignment to the nearest existing cluster within
 `SPOT_MERGE_DIST = 0.055` normalised units (recentred on its running mean as
 points join), then up to 6 merge passes combining any two clusters that drifted
-within that distance of each other.
+within that distance of each other. Spots are sorted by games, descending — spot
+1 is where you deploy most **on that map**.
 
-A map needs **≥ 8 positioned games** (`START_MAP_MIN_GAMES`) to get a heatmap.
+### What each row shows
 
-### What each dot shows
-
-| Encoding | Meaning |
+| Element | Meaning |
 |---|---|
-| position | cluster centroid, as a % of map width/height |
-| **size** | `12 + (spotGames / mostGamesOnThatMap) × 20` px — biggest = your usual spot |
-| **colour** | win rate from that spot — green ≥ 54%, red ≤ 46%, yellow between (neutral when the sample is thin) |
-| number | games played from that spot |
-| **role label** | the curated role the cluster's games mostly map to (`majorityRole`), e.g. `air`, `front/tech` — shown under the dot when the map is in maps-metadata (see §5 · Positions) |
-| hover | `role · N games · WR% win rate` |
+| dot position | cluster centroid, as a % of map width/height |
+| dot size | `15 + (spotGames / mostGamesOnThisMap) × 26` px |
+| dot / bar colour | win rate from that spot — green ≥ 54%, red ≤ 46%, neutral between (and when the sample is thin) |
+| dot number | the spot's rank on this map (ties it to the list) |
+| list label | the spot's curated **role** (`air`, `front/tech`, …) when the map is in maps-metadata, else `Spot N`. Role = `majorityRole` of the cluster's games (see §5b · roles) |
+| list `%` | `spotGames / map.games` — share of *this map's* positioned games |
+| list bar + `%` | win rate at that spot |
+| hover (dot) | `label · N games · WR% win rate` |
 
 The card footer reports how many scoped games had **no** start position available
 (`startNoData`).
+
+### Roles
+
+Roles come from `beyond-all-reason/maps-metadata`: the maps team curates a `role`
+(`air / front / tech / sea` + slashed combos) for every labelled spawn point, per
+team-size config. Each deploy point is snapped to the nearest labelled spawn
+(within ~2600 elmos) for the config matching the game's team size, and takes that
+spawn's role ([`roleForPosition`](../src/main/map-roles.ts)). Data is a trimmed
+snapshot in [`src/main/map-roles.data.json`](../src/main/map-roles.data.json),
+regenerated by [`scripts/fetch-map-roles.mjs`](../scripts/fetch-map-roles.mjs)
+(~64 maps). The same lookup fills `role` on each **appearance** (the Appearances
+"Pos" column) and on each **start pip** in the per-replay Overview map.
 
 ---
 
@@ -314,7 +317,7 @@ scrolls all.
 | Fmt | ally-team sizes joined with `v` (`8v8`, `3v3v3`, `FFA`) |
 | Side | BAR blue/red label for the player's team — from the captain's colour, defaulting team 1 → blue in a 2-team game (`teamColorNames`) |
 | Fac | first letter of the normalised faction |
-| Pos | curated start-position role (`air` / `front` / `front/tech` / …), or `—` when unknown / map not covered (see §5 · Positions) |
+| Pos | curated start-position role (`air` / `front` / `front/tech` / …), or `—` when unknown / map not covered (see §5b · Roles) |
 | Result | Victory / Defeat / — |
 | Length | `durationMs` as `m:ss` / `h:mm:ss` |
 | Metal | `metalProduced`, compact (`fmtCompact`: `1.5M` / `708k` / `5.4k` / `420`) |
@@ -341,9 +344,9 @@ delta (normal)    = (averageX - baselineX) / baselineX * 100      # "%"
 delta (efficiency)= averageX - baselineX                          # "pt"
 startNX / startNY = bar-rts startPos.{x,z} / (Map.{width,height} * 512), clamped 0..1
 startSpot         = proximity cluster of a player's startNX/NY on one map (< 0.055)
+spot share        = spotGames / map.games          # within that one map only
 role              = maps-metadata role of the nearest labelled spawn (< 2600 elmos)
                     for the config matching the game's team size
-roleUnknown       = scoped games with no position OR map not in maps-metadata
 share (bars)      = groupGames / max(groupGames across the breakdown)
 thinSample        = scoped.length < 20
 ```
@@ -357,7 +360,7 @@ thinSample        = scoped.length < 20
 | Form chart window | last 50 games |
 | Rolling average window | 10 games |
 | Maps: min games / shown | 20 / top 6 |
-| Start heatmap: min positioned games / maps shown | 8 / top 4 |
+| Start positions: min positioned games / maps shown | 6 / top 6 |
 | Start spot cluster / merge distance | 0.055 normalised map units |
 | Role snap distance (position → nearest labelled spawn) | 2600 elmos |
 | Maps with curated role data | ~64 (`map-roles.data.json`) |

@@ -405,13 +405,6 @@ function BreakdownRow({ report }: { report: PlayerReport }): JSX.Element {
   return (
     <div className="an-breakdown">
       <BarCard title="Faction" bars={report.factions} thin={report.thinSample} accent />
-      <BarCard
-        title="Positions"
-        bars={report.roles}
-        thin={report.thinSample}
-        empty="No classified starts yet — needs bar-rts positions on a BAR-tagged map."
-        footNote={report.roleUnknown > 0 ? `${report.roleUnknown} not classified` : undefined}
-      />
       <DurationCard report={report} />
     </div>
   )
@@ -421,21 +414,16 @@ function BarCard({
   title,
   bars,
   thin,
-  accent,
-  empty,
-  footNote
+  accent
 }: {
   title: string
   bars: ReportBar[]
   thin: boolean
   accent?: boolean
-  empty?: string
-  footNote?: string
 }): JSX.Element {
   return (
     <div className="an-card">
       <div className="an-section-title">{title}</div>
-      {bars.length === 0 && empty && <div className="an-empty-line">{empty}</div>}
       <div className="an-bars">
         {bars.map((b) => (
           <div key={b.label} className="an-bar-row">
@@ -462,7 +450,6 @@ function BarCard({
           </div>
         ))}
       </div>
-      {footNote && <div className="an-foot-note">{footNote}</div>}
     </div>
   )
 }
@@ -524,11 +511,11 @@ function StartHeatCard({ report }: { report: PlayerReport }): JSX.Element {
     <div className="an-card">
       <div className="an-card-head">
         <span className="an-section-title">Start positions</span>
-        <span className="an-sub">where you deploy · per map · dot size = games, colour = win rate</span>
+        <span className="an-sub">where you deploy — each map compared only against its own spots</span>
       </div>
-      <div className="an-startmaps">
+      <div className="an-startmap-list">
         {report.startMaps.map((m) => (
-          <StartMapMini key={m.name} map={m} thin={report.thinSample} />
+          <StartMapRow key={m.name} map={m} thin={report.thinSample} />
         ))}
       </div>
       {noteNoData && <div className="an-foot-note">{noteNoData} — not shown</div>}
@@ -536,12 +523,14 @@ function StartHeatCard({ report }: { report: PlayerReport }): JSX.Element {
   )
 }
 
-function StartMapMini({ map, thin }: { map: ReportStartMap; thin: boolean }): JSX.Element {
-  const photo = useMapImage(map.name, 'thumb')
+function StartMapRow({ map, thin }: { map: ReportStartMap; thin: boolean }): JSX.Element {
+  const photo = useMapImage(map.scriptName, 'thumb')
   const maxGames = Math.max(1, ...map.spots.map((s) => s.games))
+  const spotLabel = (s: ReportStartMap['spots'][number], i: number): string =>
+    s.role ?? `Spot ${i + 1}`
 
   return (
-    <div className="an-startmap">
+    <div className="an-startmap-row">
       <div className="an-startmap-frame">
         {photo ? (
           <img src={photo} alt="" className="an-startmap-img" />
@@ -549,23 +538,47 @@ function StartMapMini({ map, thin }: { map: ReportStartMap; thin: boolean }): JS
           <div className="an-startmap-img an-startmap-noimg" />
         )}
         {map.spots.map((s, i) => {
-          const size = 12 + Math.round((s.games / maxGames) * 20)
+          const size = 15 + Math.round((s.games / maxGames) * 26)
           return (
             <span
               key={i}
               className={`an-startdot ${wrClass(s.winRate, thin)}`}
               style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, width: size, height: size }}
-              title={`${s.role ? s.role + ' · ' : ''}${s.games} game${s.games === 1 ? '' : 's'} · ${fmtWr(s.winRate)} win rate`}
+              title={`${spotLabel(s, i)} · ${s.games} game${s.games === 1 ? '' : 's'} · ${fmtWr(s.winRate)} win rate`}
             >
-              <span className="an-startdot-n">{s.games}</span>
-              {s.role && <span className="an-startdot-role">{s.role}</span>}
+              <span className="an-startdot-n">{i + 1}</span>
             </span>
           )
         })}
       </div>
-      <div className="an-startmap-cap">
-        <span className="an-map-name">{map.name}</span>
-        <span className="an-startmap-games">{map.games} g</span>
+
+      <div className="an-startmap-side">
+        <div className="an-startmap-cap">
+          <span className="an-map-name">{map.name}</span>
+          <span className="an-startmap-games">{map.games} g positioned</span>
+        </div>
+        <div className="an-startspots">
+          {map.spots.map((s, i) => (
+            <div key={i} className="an-startspot">
+              <span className="an-startspot-rank">{i + 1}</span>
+              <span className="an-startspot-label">{spotLabel(s, i)}</span>
+              <span className="an-spacer" />
+              <span className="an-startspot-share">
+                {Math.round((s.games / map.games) * 100)}%
+              </span>
+              <span className="an-startspot-games">{s.games} g</span>
+              <span className="an-startspot-bar">
+                <span
+                  className={`an-startspot-fill ${wrClass(s.winRate, thin)}`}
+                  style={{ width: `${Math.round((s.winRate ?? 0) * 100)}%` }}
+                />
+              </span>
+              <span className={`an-startspot-wr ${wrClass(s.winRate, thin)}`}>
+                {fmtWr(s.winRate)}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

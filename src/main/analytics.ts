@@ -21,6 +21,8 @@ interface Appearance {
   filePath: string
   startTime: string | null
   mapName: string
+  /** Full map name (unstripped) — for fetching the right minimap texture. */
+  scriptName: string
   durationMs: number
   fmt: string
   side: 'blue' | 'red' | null
@@ -76,7 +78,8 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
   const colors = teamColorNames(meta)
   const fmt = meta.allyTeams.map((t) => t.players.length).join('v')
   const serverPos = serverStartPositions(meta.gameId)
-  const mapName = stripMapVersion(meta.map?.name ?? 'Unknown')
+  const scriptName = meta.map?.name ?? 'Unknown'
+  const mapName = stripMapVersion(scriptName)
   const teamCount = meta.allyTeams.length
   const out: Appearance[] = []
 
@@ -101,6 +104,7 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
         filePath: meta.filePath,
         startTime: meta.startTime,
         mapName,
+        scriptName,
         durationMs: meta.durationMs || 0,
         fmt,
         side: colors[ti] ?? null,
@@ -208,18 +212,6 @@ const FORM_METRICS = [
   { key: 'os', label: 'OS' }
 ]
 
-/** Display order for start-position roles (unknowns sort last). */
-const ROLE_ORDER = [
-  'air',
-  'air/front',
-  'front',
-  'front/tech',
-  'front/sea',
-  'tech',
-  'sea/tech',
-  'sea'
-]
-
 const DURATION_BUCKETS: [string, number, number][] = [
   ['<15m', 0, 15 * 60_000],
   ['15–25m', 15 * 60_000, 25 * 60_000],
@@ -250,8 +242,6 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     form: { metrics: FORM_METRICS, games: [] },
     factions: [],
     sizes: [],
-    roles: [],
-    roleUnknown: 0,
     durations: [],
     startMaps: [],
     startNoData: 0,
@@ -283,9 +273,6 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     order: ['8v8', '4v4', '3v3', '2v2', '1v1', 'FFA'],
     meta: () => ({})
   })
-  const classified = scoped.filter((a) => a.role)
-  empty.roles = groupBars(classified, (a) => a.role!, { order: ROLE_ORDER, meta: () => ({}) })
-  empty.roleUnknown = scoped.length - classified.length
   empty.durations = DURATION_BUCKETS.map(([label, lo, hi]) => {
     const g = scoped.filter((a) => a.durationMs >= lo && a.durationMs < hi)
     return { label, games: g.length, winRate: winRateOf(g) }
@@ -459,9 +446,9 @@ function groupCount<T>(rows: T[], keyOf: (r: T) => string): Map<string, T[]> {
 /** Merge distance for clustering deploy points, in normalised map units. */
 const SPOT_MERGE_DIST = 0.055
 /** A map needs this many positioned games before it earns a heatmap. */
-const START_MAP_MIN_GAMES = 8
+const START_MAP_MIN_GAMES = 6
 /** Show at most this many maps. */
-const START_MAP_LIMIT = 4
+const START_MAP_LIMIT = 6
 
 function buildStartMaps(scoped: Appearance[]): ReportStartMap[] {
   const positioned = scoped.filter((a) => a.startNX != null && a.startNY != null)
@@ -469,7 +456,13 @@ function buildStartMaps(scoped: Appearance[]): ReportStartMap[] {
     .filter(([, g]) => g.length >= START_MAP_MIN_GAMES)
     .sort((a, b) => b[1].length - a[1].length)
     .slice(0, START_MAP_LIMIT)
-    .map(([name, g]) => ({ name, games: g.length, spots: clusterStartSpots(g) }))
+    .map(([name, g]) => ({
+      name,
+      // Latest full name in the group — for the right minimap texture version.
+      scriptName: g[g.length - 1]!.scriptName,
+      games: g.length,
+      spots: clusterStartSpots(g)
+    }))
 }
 
 /**

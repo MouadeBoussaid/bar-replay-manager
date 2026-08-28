@@ -211,7 +211,10 @@ export interface ReportStartSpot {
 }
 
 export interface ReportStartMap {
+  /** Version-stripped display name. */
   name: string
+  /** Full map name (latest version seen) — for the minimap texture. */
+  scriptName: string
   /** Games on this map that had a usable per-player start position. */
   games: number
   /** Clustered deploy spots, most-used first. */
@@ -263,10 +266,6 @@ export interface PlayerReport {
   }
   factions: ReportBar[]
   sizes: ReportBar[]
-  /** Start-position role mix (air / front / tech / sea, …), across every map. */
-  roles: ReportBar[]
-  /** Scoped games with no role — no position, or the map isn't in the metadata. */
-  roleUnknown: number
   durations: ReportDurationBucket[]
   /** Per-map start-position heatmaps, most-played map first. */
   startMaps: ReportStartMap[]
