@@ -1102,6 +1102,10 @@ body.dragging-divider * {
 /* ----------------------------------------------------------------- stats tab */
 .stats-tab {
   font: 400 11px var(--sans);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 .stats-empty {
   padding: 24px;
@@ -1111,28 +1115,40 @@ body.dragging-divider * {
   max-width: 520px;
 }
 .stats-scroll {
-  overflow-x: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   border: 1px solid var(--border-subtle);
 }
 .stats-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 720px;
+  min-width: 820px;
 }
 .stats-table th,
 .stats-table td {
-  padding: 5px 10px;
+  padding: 9px 16px;
   text-align: right;
   white-space: nowrap;
-  font: 400 10.5px var(--mono);
+  font: 400 12px var(--mono);
   border-bottom: 1px solid var(--border-hairline);
+}
+.stats-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.04);
+}
+.stats-table tbody tr:hover .stats-name-col {
+  background: #1b1d22;
+}
+.stats-row-alt td {
+  background: rgba(255, 255, 255, 0.02);
 }
 .stats-table thead th {
   position: sticky;
   top: 0;
+  z-index: 2;
   background: var(--bg-tab-bar);
   color: var(--text-dim);
-  font: 600 9px var(--sans);
+  font: 600 10px var(--sans);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   border-bottom: 1px solid var(--border-subtle);
@@ -1143,18 +1159,21 @@ body.dragging-divider * {
   left: 0;
   background: var(--bg-app);
   font-family: var(--sans) !important;
-  font-size: 11px !important;
+  font-size: 12.5px !important;
   color: var(--text-body);
+}
+.stats-row-alt .stats-name-col {
+  background: #101114;
 }
 .stats-table thead .stats-name-col {
   background: var(--bg-tab-bar);
-  z-index: 1;
+  z-index: 3;
 }
 .stats-swatch {
   display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 6px;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
   vertical-align: middle;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
@@ -1162,10 +1181,10 @@ body.dragging-divider * {
   text-align: left;
   background: var(--bg-card);
   color: #fff;
-  font: 600 11px var(--cond);
+  font: 600 13px var(--cond);
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  padding: 7px 10px;
+  padding: 10px 16px;
 }
 .stats-team-row.team-blue th {
   background: linear-gradient(90deg, var(--team-blue-bg), rgba(79, 155, 224, 0.06));
@@ -1186,6 +1205,7 @@ body.dragging-divider * {
   font-weight: 600;
 }
 .stats-note {
+  flex: none;
   margin: 10px 0 0;
   color: var(--text-faint);
   font: 400 10px var(--sans);

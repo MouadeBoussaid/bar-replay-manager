@@ -64,7 +64,7 @@ export function StatsTab({ meta }: Props): JSX.Element {
                   </th>
                 </tr>
                 {entries.map((e, i) => (
-                  <tr key={i}>
+                  <tr key={i} className={i % 2 ? 'stats-row-alt' : ''}>
                     <td className="stats-name-col">
                       <span className="stats-swatch" style={{ background: e.color }} />
                       {e.player.name}
