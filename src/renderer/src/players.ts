@@ -111,6 +111,8 @@ export interface Pip {
   color: string
   /** true when the spot is inferred (team box / canonical spot), not the real one. */
   approx: boolean
+  /** Curated start-position role (air / front / tech / sea, …), when known. */
+  role?: string
 }
 
 /**
@@ -141,22 +143,24 @@ export function buildPips(meta: ReplayMeta, mapInfo: MapInfo | null): Pip[][] {
 
     let boxCursor = 0
     return (rosters[ti] ?? []).map(({ player, color }, pi) => {
+      const role = player.role
       if (anyReal && player.startPos && worldW > 0) {
         return {
           x: clamp01(player.startPos.x / worldW),
           y: clamp01(player.startPos.z / worldH),
           name: player.name,
           color,
-          approx: false
+          approx: false,
+          role
         }
       }
       const spot = boxSpots[boxCursor++]
       if (spot) {
         canonUsed.add(spot.i)
-        return { x: spot.p.x, y: spot.p.y, name: player.name, color, approx: true }
+        return { x: spot.p.x, y: spot.p.y, name: player.name, color, approx: true, role }
       }
       const spread = spreadInBox(box, pi, team.players.length)
-      return { x: spread.x, y: spread.y, name: player.name, color, approx: true }
+      return { x: spread.x, y: spread.y, name: player.name, color, approx: true, role }
     })
   })
 }

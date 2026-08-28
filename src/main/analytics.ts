@@ -11,6 +11,7 @@ import type {
   ReportStartSpot
 } from '../shared/types'
 import { teamColorNames } from '../shared/team-colors'
+import { roleForPosition } from './map-roles'
 import { store } from './store'
 
 /** One player's line in one replay — the unit the analytics tab aggregates over. */
@@ -30,6 +31,8 @@ interface Appearance {
   /** Normalised per-player start position from a cached bar-rts record, 0..1. */
   startNX?: number
   startNY?: number
+  /** Curated start-position role (air / front / tech / sea, …), when resolvable. */
+  role?: string
   metalProduced?: number
   metalExcess?: number
   energyProduced?: number
@@ -73,6 +76,8 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
   const colors = teamColorNames(meta)
   const fmt = meta.allyTeams.map((t) => t.players.length).join('v')
   const serverPos = serverStartPositions(meta.gameId)
+  const mapName = stripMapVersion(meta.map?.name ?? 'Unknown')
+  const teamCount = meta.allyTeams.length
   const out: Appearance[] = []
 
   meta.allyTeams.forEach((team, ti) => {
@@ -80,17 +85,22 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
     const enemies = meta.allyTeams
       .filter((_, j) => j !== ti)
       .flatMap((t) => t.players.filter((p) => !p.isAi).map((p) => p.name))
+    const ppt = humans.length || team.players.length
 
     for (const p of team.players) {
       if (p.isAi) continue
       const s = p.stats
       const pos = serverPos.get(p.name.toLowerCase())
+      const role =
+        pos != null
+          ? (roleForPosition(mapName, ppt, teamCount, pos.ex, pos.ez) ?? undefined)
+          : undefined
       out.push({
         name: p.name,
         nameKey: p.name.toLowerCase(),
         filePath: meta.filePath,
         startTime: meta.startTime,
-        mapName: stripMapVersion(meta.map?.name ?? 'Unknown'),
+        mapName,
         durationMs: meta.durationMs || 0,
         fmt,
         side: colors[ti] ?? null,
@@ -98,8 +108,9 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
         result: team.won === true ? 'win' : team.won === false ? 'loss' : 'undecided',
         os: typeof p.skillOS === 'number' ? p.skillOS : null,
         rgb: p.rgbColor ?? null,
-        startNX: pos?.x,
-        startNY: pos?.y,
+        startNX: pos?.nx,
+        startNY: pos?.ny,
+        role,
         metalProduced: s?.metalProduced,
         metalExcess: s?.metalExcess,
         energyProduced: s?.energyProduced,
@@ -137,8 +148,10 @@ function stripMapVersion(name: string): string {
  * local demo has only the shared ally-team box, so this is the only source of
  * spot-level positions.
  */
-function serverStartPositions(gameId: string | null): Map<string, { x: number; y: number }> {
-  const out = new Map<string, { x: number; y: number }>()
+function serverStartPositions(
+  gameId: string | null
+): Map<string, { nx: number; ny: number; ex: number; ez: number }> {
+  const out = new Map<string, { nx: number; ny: number; ex: number; ez: number }>()
   if (!gameId) return out
   const data = store.getApiCache(gameId)?.data as
     | { Map?: { width?: unknown; height?: unknown }; AllyTeams?: unknown }
@@ -161,8 +174,10 @@ function serverStartPositions(gameId: string | null): Map<string, { x: number; y
       const pz = Number(raw.z ?? raw.y)
       if (!Number.isFinite(px) || !Number.isFinite(pz) || (px === 0 && pz === 0)) continue
       out.set(rec.name.toLowerCase(), {
-        x: clamp01(px / (w * 512)),
-        y: clamp01(pz / (h * 512))
+        nx: clamp01(px / (w * 512)),
+        ny: clamp01(pz / (h * 512)),
+        ex: px,
+        ez: pz
       })
     }
   }
@@ -191,6 +206,18 @@ const FORM_METRICS = [
   { key: 'cmdPerMin', label: 'CMD / min' },
   { key: 'unitsMade', label: 'Units made' },
   { key: 'os', label: 'OS' }
+]
+
+/** Display order for start-position roles (unknowns sort last). */
+const ROLE_ORDER = [
+  'air',
+  'air/front',
+  'front',
+  'front/tech',
+  'front/sea',
+  'tech',
+  'sea/tech',
+  'sea'
 ]
 
 const DURATION_BUCKETS: [string, number, number][] = [
@@ -223,6 +250,8 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     form: { metrics: FORM_METRICS, games: [] },
     factions: [],
     sizes: [],
+    roles: [],
+    roleUnknown: 0,
     durations: [],
     startMaps: [],
     startNoData: 0,
@@ -254,6 +283,9 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     order: ['8v8', '4v4', '3v3', '2v2', '1v1', 'FFA'],
     meta: () => ({})
   })
+  const classified = scoped.filter((a) => a.role)
+  empty.roles = groupBars(classified, (a) => a.role!, { order: ROLE_ORDER, meta: () => ({}) })
+  empty.roleUnknown = scoped.length - classified.length
   empty.durations = DURATION_BUCKETS.map(([label, lo, hi]) => {
     const g = scoped.filter((a) => a.durationMs >= lo && a.durationMs < hi)
     return { label, games: g.length, winRate: winRateOf(g) }
@@ -499,9 +531,20 @@ function clusterStartSpots(rows: Appearance[]): ReportStartSpot[] {
       x: round3(c.x),
       y: round3(c.y),
       games: c.rows.length,
-      winRate: winRateOf(c.rows)
+      winRate: winRateOf(c.rows),
+      role: majorityRole(c.rows)
     }))
     .sort((a, b) => b.games - a.games)
+}
+
+/** The role most rows in a cluster agree on, or undefined when none is tagged. */
+function majorityRole(rows: Appearance[]): string | undefined {
+  const tally = new Map<string, number>()
+  for (const r of rows) if (r.role) tally.set(r.role, (tally.get(r.role) ?? 0) + 1)
+  let best: string | undefined
+  let bestN = 0
+  for (const [role, n] of tally) if (n > bestN) ((bestN = n), (best = role))
+  return best
 }
 
 function round3(n: number): number {
@@ -548,6 +591,7 @@ function appearanceRow(a: Appearance): ReportAppearance {
         ? Math.round((a.damageDealt / a.damageReceived) * 100)
         : null,
     cmd: a.cmdPerMin ?? null,
+    role: a.role ?? null,
     filePath: a.filePath
   }
 }

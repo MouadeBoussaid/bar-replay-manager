@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import type { AllyTeamMeta, PlayerMeta, ReplayMeta } from '../shared/types'
 import { fetchServerReplay, mergeServerData } from './bar-api'
 import { readDemoFile } from './demo-header'
+import { annotateRoles } from './map-roles'
 import { store } from './store'
 import { collectIndexed, findSection, parseTdf, type TdfSection } from './tdf'
 
@@ -45,7 +46,7 @@ export async function getReplayDetail(
     }
   }
 
-  return meta
+  return annotateRoles(meta)
 }
 
 /** Parse just the local `.sdfz` into a ReplayMeta (source: 'local'). Never throws. */

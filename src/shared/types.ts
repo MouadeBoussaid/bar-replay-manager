@@ -50,6 +50,8 @@ export interface PlayerMeta {
   isAi?: boolean
   /** Start position in world coords (elmos): x east, z south. Renderer normalises. */
   startPos?: { x: number; z: number }
+  /** Curated start-position role (air / front / tech / sea, …) when the map is covered. */
+  role?: string
   /** Total metal produced, in raw units (renderer formats to "N.Nk"). */
   metal?: number
   /** Full per-player end-game stat line, when the demo has a stats trailer. */
@@ -204,6 +206,8 @@ export interface ReportStartSpot {
   y: number
   games: number
   winRate: number | null
+  /** Curated role for this spot (air / front / tech / sea, …), when the map is covered. */
+  role?: string
 }
 
 export interface ReportStartMap {
@@ -233,6 +237,8 @@ export interface ReportAppearance {
   dmg: number | null
   eff: number | null
   cmd: number | null
+  /** Curated start-position role, or null when unknown / map not covered. */
+  role: string | null
   filePath: string
 }
 
@@ -257,6 +263,10 @@ export interface PlayerReport {
   }
   factions: ReportBar[]
   sizes: ReportBar[]
+  /** Start-position role mix (air / front / tech / sea, …), across every map. */
+  roles: ReportBar[]
+  /** Scoped games with no role — no position, or the map isn't in the metadata. */
+  roleUnknown: number
   durations: ReportDurationBucket[]
   /** Per-map start-position heatmaps, most-played map first. */
   startMaps: ReportStartMap[]

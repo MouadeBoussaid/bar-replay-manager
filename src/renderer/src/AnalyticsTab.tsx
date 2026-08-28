@@ -405,6 +405,13 @@ function BreakdownRow({ report }: { report: PlayerReport }): JSX.Element {
   return (
     <div className="an-breakdown">
       <BarCard title="Faction" bars={report.factions} thin={report.thinSample} accent />
+      <BarCard
+        title="Positions"
+        bars={report.roles}
+        thin={report.thinSample}
+        empty="No classified starts yet — needs bar-rts positions on a BAR-tagged map."
+        footNote={report.roleUnknown > 0 ? `${report.roleUnknown} not classified` : undefined}
+      />
       <DurationCard report={report} />
     </div>
   )
@@ -414,16 +421,21 @@ function BarCard({
   title,
   bars,
   thin,
-  accent
+  accent,
+  empty,
+  footNote
 }: {
   title: string
   bars: ReportBar[]
   thin: boolean
   accent?: boolean
+  empty?: string
+  footNote?: string
 }): JSX.Element {
   return (
     <div className="an-card">
       <div className="an-section-title">{title}</div>
+      {bars.length === 0 && empty && <div className="an-empty-line">{empty}</div>}
       <div className="an-bars">
         {bars.map((b) => (
           <div key={b.label} className="an-bar-row">
@@ -450,6 +462,7 @@ function BarCard({
           </div>
         ))}
       </div>
+      {footNote && <div className="an-foot-note">{footNote}</div>}
     </div>
   )
 }
@@ -542,9 +555,10 @@ function StartMapMini({ map, thin }: { map: ReportStartMap; thin: boolean }): JS
               key={i}
               className={`an-startdot ${wrClass(s.winRate, thin)}`}
               style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, width: size, height: size }}
-              title={`${s.games} game${s.games === 1 ? '' : 's'} · ${fmtWr(s.winRate)} win rate`}
+              title={`${s.role ? s.role + ' · ' : ''}${s.games} game${s.games === 1 ? '' : 's'} · ${fmtWr(s.winRate)} win rate`}
             >
               <span className="an-startdot-n">{s.games}</span>
+              {s.role && <span className="an-startdot-role">{s.role}</span>}
             </span>
           )
         })}
@@ -677,6 +691,7 @@ function Appearances({
           <span>Fmt</span>
           <span>Side</span>
           <span>Fac</span>
+          <span>Pos</span>
           <span>Result</span>
           <span className="r">Length</span>
           <span className="r">Metal</span>
@@ -700,6 +715,7 @@ function Appearances({
               {a.side ? a.side.toUpperCase() : '—'}
             </span>
             <span className="an-fac">{a.faction[0] ?? '·'}</span>
+            <span className="an-pos mono dim">{a.role ?? '—'}</span>
             <span
               className={`an-res ${a.result === 'win' ? 'an-res-w' : a.result === 'loss' ? 'an-res-l' : ''}`}
             >

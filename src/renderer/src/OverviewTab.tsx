@@ -110,6 +110,7 @@ function MapPanel({
                 <span className="pip-dot" style={{ background: pip.color }} />
                 <span className="pip-label" style={{ color: pip.color }}>
                   {pip.name}
+                  {pip.role && <span className="pip-role"> · {pip.role}</span>}
                 </span>
               </div>
             )

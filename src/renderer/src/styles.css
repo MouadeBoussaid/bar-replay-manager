@@ -994,6 +994,9 @@ body.dragging-divider * {
   white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
 }
+.pip-role {
+  color: rgba(255, 255, 255, 0.55);
+}
 .map-caption {
   margin-top: 6px;
   font: 400 9px var(--mono);
@@ -1808,7 +1811,7 @@ body.dragging-divider * {
 /* breakdown row */
 .an-breakdown {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -1953,6 +1956,21 @@ body.dragging-divider * {
   font: 700 8px var(--mono);
   color: #10120f;
 }
+.an-startdot-role {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(8, 10, 14, 0.82);
+  font: 600 8px var(--sans);
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  pointer-events: none;
+}
 .an-startmap-cap {
   display: flex;
   justify-content: space-between;
@@ -2073,7 +2091,7 @@ body.dragging-divider * {
 }
 .an-appear-grid {
   display: grid;
-  grid-template-columns: 96px minmax(120px, 1fr) 54px 62px 34px 72px 58px 66px 66px 50px 66px;
+  grid-template-columns: 96px minmax(110px, 1fr) 50px 58px 30px 60px 66px 56px 62px 62px 46px 62px;
   align-items: center;
   gap: 0;
 }
@@ -2112,6 +2130,10 @@ body.dragging-divider * {
 .an-fac {
   font: 700 11px var(--cond);
   color: rgba(255, 255, 255, 0.6);
+}
+.an-pos {
+  font-size: 9.5px !important;
+  color: rgba(255, 255, 255, 0.5);
 }
 .an-res {
   justify-self: start;
@@ -2207,7 +2229,7 @@ body.dragging-divider * {
     grid-template-columns: repeat(2, 1fr);
   }
   .an-breakdown {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   .an-maps-company {
     grid-template-columns: 1fr;
