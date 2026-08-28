@@ -40,7 +40,8 @@ const DEFAULTS: DbShape = {
   settings: {
     replaysFolder: null,
     onlineEnrich: true,
-    listPaneWidth: 392
+    listPaneWidth: 392,
+    analyticsPlayerName: ''
   },
   favourites: {},
   cache: {},

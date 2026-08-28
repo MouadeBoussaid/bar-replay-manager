@@ -23,6 +23,11 @@ const SORT_LABELS: Record<SortKey, string> = {
 }
 
 const ROW_HEIGHT = 78
+const GROUP_HEADER_H = 36
+
+type RenderRow =
+  | { type: 'header'; key: string; label: string; count: number }
+  | { type: 'row'; key: string; item: ReplayListItem }
 
 interface Props {
   items: ReplayListItem[]
@@ -30,6 +35,8 @@ interface Props {
   totalBytes: number
   nonFavCount: number
   drawCount: number
+  /** When non-empty, split the list into "My replays" / "Watched replays". */
+  groupByPlayer: string
   selectedId: string | null
   folder: string | null
   lastScanAt: number | null
@@ -56,6 +63,7 @@ export function ReplayList(props: Props): JSX.Element {
     totalBytes,
     nonFavCount,
     drawCount,
+    groupByPlayer,
     selectedId,
     folder,
     lastScanAt,
@@ -76,18 +84,44 @@ export function ReplayList(props: Props): JSX.Element {
   } = props
 
   const searchRef = useRef<HTMLInputElement>(null)
-  const virtual = useVirtualRows(items.length, ROW_HEIGHT)
+
+  // Flat render list — optionally split into "My replays" / "Watched replays".
+  const rows = useMemo<RenderRow[]>(() => {
+    const name = groupByPlayer.trim().toLowerCase()
+    if (!name) return items.map((i) => ({ type: 'row', key: i.filePath, item: i }))
+    const mine: ReplayListItem[] = []
+    const watched: ReplayListItem[] = []
+    for (const i of items) {
+      if (i.playerNames.some((p) => p.toLowerCase() === name)) mine.push(i)
+      else watched.push(i)
+    }
+    const out: RenderRow[] = []
+    for (const [label, list] of [
+      ['My replays', mine],
+      ['Watched replays', watched]
+    ] as const) {
+      out.push({ type: 'header', key: `h:${label}`, label, count: list.length })
+      for (const i of list) out.push({ type: 'row', key: i.filePath, item: i })
+    }
+    return out
+  }, [items, groupByPlayer])
+
+  const heights = useMemo(
+    () => rows.map((r) => (r.type === 'header' ? GROUP_HEADER_H : ROW_HEIGHT)),
+    [rows]
+  )
+  const virtual = useVirtualRows(heights)
 
   // Keep the selected row in view as the user arrows through the list.
   useEffect(() => {
-    const idx = items.findIndex((i) => i.filePath === selectedId)
+    const idx = rows.findIndex((r) => r.type === 'row' && r.item.filePath === selectedId)
     const el = virtual.ref.current
     if (idx < 0 || !el) return
-    const top = idx * ROW_HEIGHT
-    const bottom = top + ROW_HEIGHT
+    const top = virtual.offsets[idx]!
+    const bottom = virtual.offsets[idx + 1]!
     if (top < el.scrollTop) el.scrollTop = top
     else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight
-  }, [selectedId, items, virtual.ref])
+  }, [selectedId, rows, virtual.ref, virtual.offsets])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -133,7 +167,7 @@ export function ReplayList(props: Props): JSX.Element {
     }
   }
 
-  const slice = items.slice(virtual.start, virtual.end)
+  const slice = rows.slice(virtual.start, virtual.end)
   const folderLabel = useMemo(() => middleEllipsis(folder ?? '', 46), [folder])
 
   return (
@@ -206,16 +240,23 @@ export function ReplayList(props: Props): JSX.Element {
         ) : (
           <div className="list-rows-inner" style={{ height: virtual.totalHeight }}>
             <div style={{ transform: `translateY(${virtual.offsetY}px)` }}>
-              {slice.map((item, i) => (
-                <Row
-                  key={item.filePath}
-                  item={item}
-                  selected={item.filePath === selectedId}
-                  zebra={(virtual.start + i) % 2 === 1}
-                  onSelect={() => onSelect(item.filePath)}
-                  onToggleFavourite={() => onToggleFavourite(item.filePath)}
-                />
-              ))}
+              {slice.map((r, i) =>
+                r.type === 'header' ? (
+                  <div className="list-group-header" key={r.key} style={{ height: GROUP_HEADER_H }}>
+                    {r.label}
+                    <span className="list-group-count">{r.count}</span>
+                  </div>
+                ) : (
+                  <Row
+                    key={r.key}
+                    item={r.item}
+                    selected={r.item.filePath === selectedId}
+                    zebra={(virtual.start + i) % 2 === 1}
+                    onSelect={() => onSelect(r.item.filePath)}
+                    onToggleFavourite={() => onToggleFavourite(r.item.filePath)}
+                  />
+                )
+              )}
             </div>
           </div>
         )}

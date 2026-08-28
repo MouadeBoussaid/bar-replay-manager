@@ -315,6 +315,7 @@ export function App(): JSX.Element {
           totalBytes={totalBytes}
           nonFavCount={nonFavCount}
           drawCount={drawItems.length}
+          groupByPlayer={settings?.analyticsPlayerName ?? ''}
           selectedId={selected}
           folder={folder}
           lastScanAt={lastScanAt}

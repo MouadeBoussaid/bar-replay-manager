@@ -15,6 +15,11 @@ export interface Settings {
   onlineEnrich: boolean
   /** Width in px of the left list pane; clamped to [320, 520] by the renderer. */
   listPaneWidth: number
+  /**
+   * Player name for the User analytics tab. When set, the replay list splits into
+   * "My replays" (this player took part) and "Watched replays". Empty = no split.
+   */
+  analyticsPlayerName: string
 }
 
 /** Per-player end-game statistics from the demo trailer (offline). */

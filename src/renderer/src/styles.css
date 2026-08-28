@@ -290,6 +290,26 @@ body.dragging-divider * {
 .list-rows-inner {
   position: relative;
 }
+.list-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--bg-folder-strip);
+  border-bottom: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-subtle);
+  font: 700 10px var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+}
+.list-group-count {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  font: 500 9.5px var(--mono);
+  color: var(--text-muted);
+}
 
 .row {
   height: 78px;
