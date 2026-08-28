@@ -4,7 +4,7 @@ import { gzipSync } from 'node:zlib'
 import { writeFileSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { readDemoFile } from '../src/main/demo-header.ts'
+import { readDemoFile, readDemoSeries } from '../src/main/demo-header.ts'
 import { parseTdf, findSection, collectIndexed } from '../src/main/tdf.ts'
 
 const script = `[GAME]
@@ -40,7 +40,11 @@ const TEAM_ELEM = 80 // includes the leading `int frame`
 const teamStats = Buffer.alloc(8 + 3 * TEAM_ELEM)
 teamStats.writeInt32LE(2, 0) // team 0 snapshot count
 teamStats.writeInt32LE(1, 4) // team 1 snapshot count
-let o = 8 + TEAM_ELEM // team 0's LAST snapshot; +4 skips `frame`
+let o = 8 // team 0's FIRST snapshot
+teamStats.writeInt32LE(0, o) // frame
+teamStats.writeFloatLE(1000, o + 4 + 8) // metalProduced
+o = 8 + TEAM_ELEM // team 0's LAST snapshot; +4 skips `frame`
+teamStats.writeInt32LE(450, o) // frame (15s @ 30fps)
 teamStats.writeFloatLE(5000, o + 4 + 8) // metalProduced
 teamStats.writeFloatLE(400, o + 4 + 16) // metalExcess
 teamStats.writeFloatLE(99000, o + 4 + 12) // energyProduced
@@ -48,6 +52,7 @@ teamStats.writeFloatLE(12345, o + 4 + 40) // damageDealt
 teamStats.writeInt32LE(42, o + 4 + 52) // unitsDied
 teamStats.writeInt32LE(7, o + 4 + 72) // unitsKilled
 o = 8 + 2 * TEAM_ELEM // team 1's only snapshot
+teamStats.writeInt32LE(0, o) // frame
 teamStats.writeFloatLE(3000, o + 4 + 8)
 teamStats.writeInt32LE(10, o + 4 + 52)
 teamStats.writeInt32LE(20, o + 4 + 72)
@@ -127,6 +132,15 @@ check('teamStats[1].unitsKilled', raw.teamStats[1].unitsKilled, 20)
 check('playerStats.length', raw.playerStats.length, 2)
 check('playerStats[0].numCommands', raw.playerStats[0].numCommands, 1200)
 check('playerStats[1].numCommands', raw.playerStats[1].numCommands, 900)
+
+const series = readDemoSeries(file)
+check('series teams', series.teams.length, 2)
+check('series team0 samples', series.teams[0].samples.length, 2)
+check('series team0 s0 metalProduced', series.teams[0].samples[0].metalProduced, 1000)
+check('series team0 s1 metalProduced', series.teams[0].samples[1].metalProduced, 5000)
+check('series team0 s1 frame', series.teams[0].samples[1].frame, 450)
+check('series team1 samples', series.teams[1].samples.length, 1)
+check('series periodSeconds', series.periodSeconds, 15)
 check('mapname', game.keys['mapname'], 'All That Glitters v2.2.3')
 check('gametype', game.keys['gametype'], 'Beyond All Reason test-31090')
 check('modoptions.maxunits', findSection(game, 'modoptions').keys['maxunits'], '2000')

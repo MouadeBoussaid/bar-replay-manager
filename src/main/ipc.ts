@@ -6,6 +6,7 @@ import { resolveFavouriteKey } from './favourites'
 import { startWatch, stopWatch } from './folder-watcher'
 import { playReplay } from './launch'
 import { getMapImage, getMapInfo, type MapImageSize } from './map-images'
+import { buildReplayGraph } from './replay-graph'
 import { detectDefaultFolder } from './paths'
 import { getReplayDetail } from './replay-parser'
 import { listReplays } from './replay-scanner'
@@ -43,6 +44,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     getMapImage(name, size)
   )
   ipcMain.handle('map:info', (_e, name: string) => getMapInfo(name))
+  ipcMain.handle('replay:graph', (_e, filePath: string) => buildReplayGraph(filePath))
 
   ipcMain.handle('replay:trash', async (_e, filePath: string) => {
     await shell.trashItem(filePath)

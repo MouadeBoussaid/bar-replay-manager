@@ -126,6 +126,23 @@ export interface ReplayListItem {
   note: string
 }
 
+/** Time-series data for the Graphs tab. One line per team (= player). */
+export interface ReplayGraph {
+  /** Seconds from game start for each sample (x axis). */
+  times: number[]
+  /** Seconds between samples. */
+  periodSeconds: number
+  teams: {
+    teamId: number
+    allyTeamId: number
+    name: string
+    /** "rgb(r, g, b)"; falls back to a palette colour. */
+    color: string
+  }[]
+  /** Field key → per-team series; `series[teamIndex][sampleIndex]`. */
+  fields: Record<string, number[][]>
+}
+
 export interface MapInfo {
   /** Map size in map units; multiply by 512 for world elmos. */
   width: number
@@ -169,6 +186,8 @@ export interface Api {
   getMapImage(mapName: string, size: 'thumb' | 'mq'): Promise<string | null>
   /** Map dimensions + canonical start spots (world elmos), for plotting pips. */
   getMapInfo(mapName: string): Promise<MapInfo | null>
+  /** Full per-team time-series (parsed on demand). Null when the demo has none. */
+  getReplayGraph(filePath: string): Promise<ReplayGraph | null>
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void

@@ -76,6 +76,117 @@ export interface RawDemo {
 const TEAM_STAT_MIN = 76
 const PLAYER_STAT_ELEM = 20
 
+/** All numeric fields of one team-stats snapshot (a Spring `TeamStatistics`). */
+export interface TeamSample {
+  frame: number
+  metalUsed: number
+  energyUsed: number
+  metalProduced: number
+  energyProduced: number
+  metalExcess: number
+  energyExcess: number
+  metalReceived: number
+  energyReceived: number
+  metalSent: number
+  energySent: number
+  damageDealt: number
+  damageReceived: number
+  unitsProduced: number
+  unitsDied: number
+  unitsReceived: number
+  unitsSent: number
+  unitsCaptured: number
+  unitsOutCaptured: number
+  unitsKilled: number
+}
+
+export interface DemoSeries {
+  scriptText: string
+  /** Seconds between snapshots (`teamStatPeriod`). */
+  periodSeconds: number
+  /** Full snapshot history per team, indexed by teamId. */
+  teams: { teamId: number; samples: TeamSample[] }[]
+}
+
+/** Read one TeamStatistics record; `base` already includes the `f` frame offset. */
+function readSample(buf: Buffer, base: number, frame: number): TeamSample {
+  const fl = (o: number): number => buf.readFloatLE(base + o)
+  const it = (o: number): number => buf.readInt32LE(base + o)
+  return {
+    frame,
+    metalUsed: fl(0),
+    energyUsed: fl(4),
+    metalProduced: fl(8),
+    energyProduced: fl(12),
+    metalExcess: fl(16),
+    energyExcess: fl(20),
+    metalReceived: fl(24),
+    energyReceived: fl(28),
+    metalSent: fl(32),
+    energySent: fl(36),
+    damageDealt: fl(40),
+    damageReceived: fl(44),
+    unitsProduced: it(48),
+    unitsDied: it(52),
+    unitsReceived: it(56),
+    unitsSent: it(60),
+    unitsCaptured: it(64),
+    unitsOutCaptured: it(68),
+    unitsKilled: it(72)
+  }
+}
+
+interface TeamStatsGeom {
+  /** Byte offset of the first record (after the numTeams dword count array). */
+  recordsStart: number
+  /** Bytes per record (76 or 80). */
+  rec: number
+  /** Offset of the economy fields inside a record (4 when `int frame` is present). */
+  f: number
+  /** Snapshot count for each team. */
+  counts: number[]
+  layout: 'A' | 'B'
+}
+
+/**
+ * Locate the team-stats block in the post-stream trailer. Tries the two known
+ * block orderings and accepts whichever divides evenly into
+ * `numTeams` dword counts + Σcounts × recordSize.
+ */
+function locateTeamStats(
+  buf: Buffer,
+  trailerStart: number,
+  playerStatSize: number,
+  winSize: number,
+  numTeams: number,
+  teamStatSize: number
+): TeamStatsGeom | null {
+  if (teamStatSize <= 0 || numTeams <= 0 || numTeams > 512) return null
+
+  const tryAt = (start: number, layout: 'A' | 'B'): TeamStatsGeom | null => {
+    if (start < 0 || start + teamStatSize > buf.length || numTeams * 4 > teamStatSize) return null
+    const counts: number[] = []
+    let off = start
+    for (let t = 0; t < numTeams; t++) {
+      const c = buf.readInt32LE(off)
+      off += 4
+      if (c < 0 || c > 1_000_000) return null
+      counts.push(c)
+    }
+    const sum = counts.reduce((a, c) => a + c, 0)
+    if (sum === 0) return null
+    const rec = (teamStatSize - numTeams * 4) / sum
+    if (!Number.isInteger(rec) || rec < TEAM_STAT_MIN || rec > 4096) return null
+    return { recordsStart: off, rec, f: rec >= TEAM_STAT_MIN + 4 ? 4 : 0, counts, layout }
+  }
+
+  // A: [playerStats][teamStats][winners]   B: [winners][playerStats][teamStats]
+  return (
+    tryAt(trailerStart + playerStatSize, 'A') ??
+    tryAt(trailerStart + winSize + playerStatSize, 'B')
+  )
+}
+
 export function readDemoFile(path: string): RawDemo {
   const fileBuf = readFileSync(path)
   const buf =
@@ -207,47 +318,32 @@ function readTrailer(buf: Buffer, o: TrailerLayout): Trailer {
     return out
   }
 
-  const readTeams = (start: number): TeamStat[] | null => {
-    if (teamStatSize <= 0 || numTeams <= 0 || numTeams > 512) return null
-    if (start < 0 || start + teamStatSize > buf.length || numTeams * 4 > teamStatSize) return null
-
-    const counts: number[] = []
-    let off = start
-    for (let t = 0; t < numTeams; t++) {
-      const c = buf.readInt32LE(off)
-      off += 4
-      if (c < 0 || c > 1_000_000) return null
-      counts.push(c)
-    }
-    const sum = counts.reduce((a, c) => a + c, 0)
-    if (sum === 0) return null
-
-    // Derive the real record size from the chunk (76, 80, or a bigger future one).
-    const rec = (teamStatSize - numTeams * 4) / sum
-    if (!Number.isInteger(rec) || rec < TEAM_STAT_MIN || rec > 4096) return null
-    // Newer Recoil prepends `int frame`; economy floats follow it.
-    const f = rec >= TEAM_STAT_MIN + 4 ? 4 : 0
-
+  const lastSamples = (geom: TeamStatsGeom): TeamStat[] => {
+    const { recordsStart, rec, f, counts } = geom
+    let off = recordsStart
     const out: TeamStat[] = []
     for (let t = 0; t < numTeams; t++) {
       const c = counts[t]!
-      if (c <= 0) continue
-      const last = off + (c - 1) * rec // this team's final cumulative snapshot
-      if (last + f + TEAM_STAT_MIN > buf.length) return null
-      out.push({
-        teamId: t,
-        metalUsed: buf.readFloatLE(last + f + 0),
-        energyUsed: buf.readFloatLE(last + f + 4),
-        metalProduced: buf.readFloatLE(last + f + 8),
-        energyProduced: buf.readFloatLE(last + f + 12),
-        metalExcess: buf.readFloatLE(last + f + 16),
-        energyExcess: buf.readFloatLE(last + f + 20),
-        damageDealt: buf.readFloatLE(last + f + 40),
-        damageReceived: buf.readFloatLE(last + f + 44),
-        unitsProduced: buf.readInt32LE(last + f + 48),
-        unitsDied: buf.readInt32LE(last + f + 52),
-        unitsKilled: buf.readInt32LE(last + f + 72)
-      })
+      if (c > 0) {
+        const last = off + (c - 1) * rec
+        if (last + f + TEAM_STAT_MIN <= buf.length) {
+          const s = readSample(buf, last + f, 0)
+          out.push({
+            teamId: t,
+            metalUsed: s.metalUsed,
+            energyUsed: s.energyUsed,
+            metalProduced: s.metalProduced,
+            energyProduced: s.energyProduced,
+            metalExcess: s.metalExcess,
+            energyExcess: s.energyExcess,
+            damageDealt: s.damageDealt,
+            damageReceived: s.damageReceived,
+            unitsProduced: s.unitsProduced,
+            unitsDied: s.unitsDied,
+            unitsKilled: s.unitsKilled
+          })
+        }
+      }
       off += c * rec
     }
     return out
@@ -256,21 +352,21 @@ function readTrailer(buf: Buffer, o: TrailerLayout): Trailer {
   // A crashed game (demoStreamSize 0) has its stream running to EOF — no
   // dependable trailer offsets, so only a best-effort winner read from the tail.
   if (o.demoStreamSize > 0) {
-    // Layout A: [playerStats][teamStats][winners]
-    const aStart = trailerStart + playerStatSize
-    const aTeams = readTeams(aStart)
-    if (aTeams) {
-      return {
-        teamStats: aTeams,
-        playerStats: readPlayers(trailerStart),
-        winningAllyTeams: readWinners(aStart + teamStatSize) ?? readWinners(trailerStart) ?? []
+    const geom = locateTeamStats(buf, trailerStart, playerStatSize, winSize, numTeams, teamStatSize)
+    if (geom) {
+      const teamStats = lastSamples(geom)
+      if (geom.layout === 'A') {
+        return {
+          teamStats,
+          playerStats: readPlayers(trailerStart),
+          winningAllyTeams:
+            readWinners(geom.recordsStart - numTeams * 4 + teamStatSize) ??
+            readWinners(trailerStart) ??
+            []
+        }
       }
-    }
-    // Layout B: [winners][playerStats][teamStats]
-    const bTeams = readTeams(trailerStart + winSize + playerStatSize)
-    if (bTeams) {
       return {
-        teamStats: bTeams,
+        teamStats,
         playerStats: readPlayers(trailerStart + winSize),
         winningAllyTeams: readWinners(trailerStart) ?? []
       }
@@ -283,6 +379,57 @@ function readTrailer(buf: Buffer, o: TrailerLayout): Trailer {
     (winSize > 0 ? readWinners(buf.length - winSize) : null) ??
     []
   return { teamStats: [], playerStats: [], winningAllyTeams: w }
+}
+
+/**
+ * Full per-team snapshot history for time-series graphs. Parsed on demand (not
+ * cached with the rest of the metadata). Returns null when the demo has no
+ * usable team-stats trailer (crash / early exit).
+ */
+export function readDemoSeries(path: string): DemoSeries | null {
+  const fileBuf = readFileSync(path)
+  const buf =
+    fileBuf.length > 1 && fileBuf[0] === 0x1f && fileBuf[1] === 0x8b
+      ? gunzipSync(fileBuf)
+      : fileBuf
+  if (buf.length < 360 || buf.toString('ascii', 0, MAGIC.length) !== MAGIC) return null
+
+  const headerSize = buf.readInt32LE(20)
+  const scriptSize = buf.readInt32LE(304)
+  const demoStreamSize = buf.readInt32LE(308)
+  const playerStatSize = buf.readInt32LE(324)
+  const numTeams = buf.readInt32LE(332)
+  const teamStatSize = buf.readInt32LE(336)
+  const teamStatPeriod = buf.readInt32LE(344)
+  const winSize = buf.readInt32LE(348)
+
+  const scriptStart = headerSize > 0 && headerSize < buf.length ? headerSize : 352
+  const scriptText = cString(buf, scriptStart, Math.max(0, scriptSize))
+  if (demoStreamSize <= 0) return null
+
+  const trailerStart = scriptStart + scriptSize + demoStreamSize
+  const geom = locateTeamStats(buf, trailerStart, playerStatSize, winSize, numTeams, teamStatSize)
+  if (!geom) return null
+
+  const period = teamStatPeriod > 0 && teamStatPeriod < 3600 ? teamStatPeriod : 15
+  const { recordsStart, rec, f, counts } = geom
+
+  let off = recordsStart
+  const teams: DemoSeries['teams'] = []
+  for (let t = 0; t < numTeams; t++) {
+    const c = counts[t]!
+    const samples: TeamSample[] = []
+    for (let i = 0; i < c; i++) {
+      const base = off + i * rec
+      if (base + f + TEAM_STAT_MIN > buf.length) break
+      const frame = f === 4 ? buf.readInt32LE(base) : Math.round(i * period * 30)
+      samples.push(readSample(buf, base + f, frame))
+    }
+    off += c * rec
+    if (samples.length > 0) teams.push({ teamId: t, samples })
+  }
+  if (teams.length === 0) return null
+  return { scriptText, periodSeconds: period, teams }
 }
 
 function cString(buf: Buffer, offset: number, maxLen: number): string {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
 import { DetailsTab } from './DetailsTab'
+import { GraphsTab } from './GraphsTab'
 import { OverviewTab } from './OverviewTab'
 import { StatsTab } from './StatsTab'
 import { fmtClock, fmtHeroDateTime, fmtTeamFormat } from './format'
@@ -166,9 +167,7 @@ export function DetailPane(props: Props): JSX.Element {
         ) : tab === 'stats' ? (
           <StatsTab meta={meta} />
         ) : tab === 'graphs' ? (
-          <div className="graphs-tab">
-            <p className="stats-empty">Graphs coming soon.</p>
-          </div>
+          <GraphsTab meta={meta} />
         ) : (
           <DetailsTab
             meta={meta}

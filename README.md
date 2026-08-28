@@ -8,22 +8,29 @@ replay files.
 - Point at your replays folder (auto-detects the default BAR install path, or pick one).
 - Frameless window with a custom title bar; the two-pane layout has a draggable,
   persisted divider between the replay list and the detail view.
-- Virtualised, searchable, sortable list — every row shows the map thumbnail,
-  favourite star, date / duration / size, team format (or winner) and average OS.
-- **Overview** tab: hero with map title + **Play replay**, a start-position map,
-  four match-stat cards and both team rosters with faction / flag / OS / value bar.
-- **Details** tab: engine + game version, game id, spectators, the
-  Host / SPADS / Game / Map settings, and the favourite note / tags editor.
-- Metadata is parsed locally from the file; when **Online** is on it is also
-  cross-referenced with `api.bar-rts.com` for ratings, start positions and stats.
-  **Spoil** reveals winners and result badges (off by default).
-- **Play replay** launches the local BAR client; disabled with a tooltip when the
-  replay's engine build is not installed.
+- Virtualised, searchable, sortable list — every row shows the favourite star,
+  date / duration / size, winner (Team Blue / Red) and an OS-bracket tag.
+- **Overview** tab: hero with real minimap + **Play replay**, a start-position
+  map, per-team Metal / Energy / Damage cards, both rosters (faction / flag / OS /
+  damage bar), and the favourite note editor when favourited.
+- **Stats** tab: the full per-player end-game table (metal/energy produced &
+  excess, damage, units made/killed/lost, ≈APM) with team totals.
+- **Graphs** tab: per-player time-series of any economy / unit / combat stat,
+  total or per-interval, linear or log, with a hover readout.
+- **Details** tab: engine + game version, game id, spectators, and the
+  Host / SPADS / Game / Map settings.
+- Everything is parsed locally from the file — including the demo's per-team
+  statistics trailer. **Online lookup** additionally cross-references
+  `api.bar-rts.com` for verified ratings, colours, flags and start positions.
+- Minimap textures and map metadata come from the bar-rts map API, cached under
+  `%APPDATA%/bar-replay-manager/map-cache`.
+- **Play replay** launches the local BAR client (or the `.sdfz` file association).
 - Mark replays as **favourites**, with an optional note and tags.
 - **Delete non-favourites** (footer) or <kbd>Del</kbd> on a row — both move files to
   the Windows Recycle Bin after a confirmation dialog stating the exact count / bytes.
 - Keyboard: ↑/↓ + Home/End select, <kbd>Enter</kbd> plays, <kbd>Del</kbd> deletes,
   <kbd>F5</kbd> rescans, <kbd>Ctrl</kbd>+<kbd>F</kbd> focuses search.
+- App icons are generated from a source PNG with `npm run icons`.
 - The list auto-refreshes when a new replay appears after a game.
 - Fonts (Barlow, Saira Condensed, JetBrains Mono) are bundled locally via
   `@fontsource` — the app never fetches fonts at runtime.
