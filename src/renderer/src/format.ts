@@ -111,6 +111,28 @@ export function fmtTeamFormat(sizes: number[]): string {
   return sizes.join('v')
 }
 
+export type OsTier = 'low' | 'avg' | 'high'
+
+/** Skill bracket for a match's average OS: <20 low, 20–30 average, >30 high. */
+export function osTier(avgOs: number | null | undefined): OsTier | null {
+  if (avgOs == null || !Number.isFinite(avgOs)) return null
+  if (avgOs < 20) return 'low'
+  if (avgOs <= 30) return 'avg'
+  return 'high'
+}
+
+export const OS_TIER_LABEL: Record<OsTier, string> = {
+  low: 'Low OS',
+  avg: 'Average OS',
+  high: 'High OS'
+}
+
+/** Sort rank: high → average → low → unrated. */
+export function osTierRank(avgOs: number | null | undefined): number {
+  const t = osTier(avgOs)
+  return t === 'high' ? 0 : t === 'avg' ? 1 : t === 'low' ? 2 : 3
+}
+
 /** ISO 3166-1 alpha-2 country code -> flag emoji. */
 export function flagEmoji(code: string | undefined): string {
   if (!code || code.length !== 2 || !/^[a-z]{2}$/i.test(code)) return ''

@@ -1,22 +1,25 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReplayListItem } from '../../shared/types'
 import {
+  OS_TIER_LABEL,
   fmtClock,
   fmtDate,
   fmtGigabytes,
   fmtRelative,
-  fmtTeamFormat
+  fmtTeamFormat,
+  osTier
 } from './format'
 import { useVirtualRows } from './useVirtualRows'
 
-export type SortKey = 'newest' | 'oldest' | 'duration' | 'map' | 'avgos'
+export type SortKey = 'newest' | 'oldest' | 'duration' | 'map' | 'avgos' | 'ostier'
 
 const SORT_LABELS: Record<SortKey, string> = {
   newest: 'Newest',
   oldest: 'Oldest',
   duration: 'Duration',
   map: 'Map name',
-  avgos: 'Avg OS'
+  avgos: 'Avg OS',
+  ostier: 'OS tier'
 }
 
 const ROW_HEIGHT = 64
@@ -254,6 +257,7 @@ function Row({
   const winLabel = winTone
     ? `TEAM ${winTone.toUpperCase()}`
     : `TEAM ${(item.winnerTeamOrdinal ?? 0) + 1}`
+  const tier = osTier(item.avgOs)
   const title = item.parseError ? item.fileName : item.mapName
 
   return (
@@ -295,8 +299,11 @@ function Row({
               {showWinner ? winLabel : format}
             </span>
           )}
-          {item.avgOs != null && (
-            <span className="row-os">avg {item.avgOs.toFixed(1)} OS</span>
+          {tier && (
+            <span className={`os-pill os-pill-${tier}`}>
+              {OS_TIER_LABEL[tier]}
+              <span className="os-pill-num">{item.avgOs!.toFixed(1)}</span>
+            </span>
           )}
         </div>
       </div>

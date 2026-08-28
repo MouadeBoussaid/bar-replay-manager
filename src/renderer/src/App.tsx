@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ClearDialog } from './ClearDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DetailPane } from './DetailPane'
+import { osTierRank } from './format'
 import { ReplayList, type SortKey } from './ReplayList'
 import { TitleBar } from './TitleBar'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
@@ -198,6 +199,11 @@ export function App(): JSX.Element {
           return a.mapName.localeCompare(b.mapName)
         case 'avgos':
           return (b.avgOs ?? -1) - (a.avgOs ?? -1)
+        case 'ostier':
+          return (
+            osTierRank(a.avgOs) - osTierRank(b.avgOs) ||
+            (b.avgOs ?? -1) - (a.avgOs ?? -1)
+          )
         case 'newest':
         default:
           return (b.startTime ?? '').localeCompare(a.startTime ?? '')

@@ -31,6 +31,10 @@
 
   --team-blue: #6fb2e8;
   --team-red: #ec7d72;
+
+  --os-low: #7ba7ff;
+  --os-avg: #ffcf5c;
+  --os-high: #57e08a;
   --team-blue-bg: rgba(79, 155, 224, 0.32);
   --team-red-bg: rgba(226, 86, 75, 0.32);
 
@@ -380,9 +384,41 @@ body.dragging-divider * {
   background: var(--team-red-bg);
   color: var(--team-red);
 }
-.row-os {
-  font: 400 10.5px var(--mono);
-  color: rgba(255, 255, 255, 0.4);
+.os-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 2px 6px 2px 7px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  font: 700 8.5px var(--sans);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  flex: none;
+}
+.os-pill-num {
+  font: 500 9.5px var(--mono);
+  letter-spacing: 0;
+  opacity: 0.85;
+}
+.os-pill-low {
+  color: var(--os-low);
+  background: color-mix(in srgb, var(--os-low) 16%, transparent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--os-low) 40%, transparent);
+}
+.os-pill-avg {
+  color: var(--os-avg);
+  background: color-mix(in srgb, var(--os-avg) 16%, transparent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--os-avg) 40%, transparent);
+}
+.os-pill-high {
+  color: var(--os-high);
+  background: color-mix(in srgb, var(--os-high) 18%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--os-high) 48%, transparent);
+}
+.row-selected .os-pill {
+  box-shadow: none;
 }
 
 .list-footer {
