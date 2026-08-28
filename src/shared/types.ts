@@ -148,6 +148,108 @@ export interface ReplayGraph {
   fields: Record<string, number[][]>
 }
 
+/** ---- User analytics ---------------------------------------------------- */
+
+export type GameResult = 'win' | 'loss' | 'undecided'
+export type AnalyticsScope = 'all' | '90d' | 'last50'
+
+export interface ReportAverage {
+  key: string
+  label: string
+  /** Pre-formatted display value, e.g. "11.4k" or "128%". */
+  value: string
+  /** Signed delta vs the indexed-population baseline, pre-formatted ("+8%", "−12pt"). */
+  delta: string | null
+  /** true = delta direction is good for this metric, false = bad, null = neutral/none. */
+  good: boolean | null
+}
+
+export interface ReportFormGame {
+  date: string
+  map: string
+  result: GameResult
+  filePath: string
+  /** metric key -> value (raw units); keys match `form.metrics`. */
+  values: Record<string, number | null>
+}
+
+export interface ReportBar {
+  label: string
+  letter?: string
+  color?: string
+  games: number
+  winRate: number | null
+  /** 0..1 share of the player's games (for the bar width). */
+  share: number
+}
+
+export interface ReportDurationBucket {
+  label: string
+  games: number
+  winRate: number | null
+}
+
+export interface ReportMap {
+  name: string
+  games: number
+  winRate: number | null
+}
+
+export interface ReportCompanyRow {
+  name: string
+  color: string
+  games: number
+  winRate: number | null
+}
+
+export interface ReportAppearance {
+  date: string
+  map: string
+  fmt: string
+  side: 'blue' | 'red' | null
+  faction: string
+  result: GameResult
+  durationMs: number
+  metal: number | null
+  dmg: number | null
+  eff: number | null
+  cmd: number | null
+  filePath: string
+}
+
+export interface PlayerReport {
+  name: string
+  found: boolean
+  scope: AnalyticsScope
+  totalGames: number
+  wins: number
+  losses: number
+  undecided: number
+  winRate: number | null
+  firstSeen: string | null
+  lastSeen: string | null
+  os: number | null
+  /** < 20 games — hide win-rate colouring and derived blocks. */
+  thinSample: boolean
+  averages: ReportAverage[]
+  form: {
+    metrics: { key: string; label: string }[]
+    games: ReportFormGame[]
+  }
+  factions: ReportBar[]
+  sizes: ReportBar[]
+  durations: ReportDurationBucket[]
+  /** 6 fractions (0..1), row-major: N-left, N-centre, N-right, S-left, S-centre, S-right. */
+  startCells: number[]
+  startSplits: { north: number; south: number; flank: number; centre: number }
+  /** Replays excluded from the start grid for unreadable boxes. */
+  startExcluded: number
+  maps: ReportMap[]
+  mapsHasMore: boolean
+  company: { withP: ReportCompanyRow[]; vsP: ReportCompanyRow[] }
+  appearances: ReportAppearance[]
+}
+
 export interface MapInfo {
   /** Map size in map units; multiply by 512 for world elmos. */
   width: number
@@ -196,6 +298,10 @@ export interface Api {
   getMapInfo(mapName: string): Promise<MapInfo | null>
   /** Full per-team time-series (parsed on demand). Null when the demo has none. */
   getReplayGraph(filePath: string): Promise<ReplayGraph | null>
+  /** Distinct player names across every indexed replay (for the analytics picker). */
+  getIndexedPlayerNames(): Promise<string[]>
+  /** Aggregated playstyle report for one player. */
+  getPlayerReport(name: string, scope: AnalyticsScope): Promise<PlayerReport>
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void

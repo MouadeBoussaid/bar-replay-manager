@@ -3,6 +3,7 @@ import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ReplayListItem, ReplayMeta } from '../shared/types'
 import { teamColorNames } from '../shared/team-colors'
+import { setAnalyticsIndex } from './analytics'
 import { favouriteKeyForFile } from './favourites'
 import { parseLocal } from './replay-parser'
 import { store } from './store'
@@ -29,6 +30,7 @@ export function listReplays(folder: string): ReplayListItem[] {
   store.pruneCache(paths)
 
   const items: ReplayListItem[] = []
+  const metas: ReplayMeta[] = []
   let processed = 0
 
   for (const fileName of names) {
@@ -65,6 +67,7 @@ export function listReplays(folder: string): ReplayListItem[] {
       store.setCache(filePath, { mtimeMs, gameId: meta.gameId, meta })
     }
 
+    metas.push(meta)
     processed++
     if (processed % 25 === 0) broadcastProgress(processed, names.length)
 
@@ -113,6 +116,7 @@ export function listReplays(folder: string): ReplayListItem[] {
   }
 
   broadcastProgress(names.length, names.length)
+  setAnalyticsIndex(metas)
 
   items.sort(
     (a, b) =>

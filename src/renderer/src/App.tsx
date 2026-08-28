@@ -358,6 +358,7 @@ export function App(): JSX.Element {
           onToggleFavourite={() => selected && void toggleFavourite(selected)}
           onSaveFavourite={(d) => void saveFavourite(d)}
           onOpenInFolder={() => selected && void window.api.openInFolder(selected)}
+          onSelectReplay={setSelected}
         />
       </div>
 

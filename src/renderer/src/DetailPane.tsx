@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
+import { AnalyticsTab } from './AnalyticsTab'
 import { DetailsTab } from './DetailsTab'
 import { GraphsTab } from './GraphsTab'
 import { OverviewTab } from './OverviewTab'
@@ -20,6 +21,8 @@ interface Props {
   onToggleFavourite: () => void
   onSaveFavourite: (data: { note: string; tags: string[] }) => void
   onOpenInFolder: () => void
+  /** Select a different replay in the left list (used by the analytics tab). */
+  onSelectReplay: (filePath: string) => void
 }
 
 const TABS = [
@@ -44,7 +47,8 @@ export function DetailPane(props: Props): JSX.Element {
     onToggleSetting,
     onToggleFavourite,
     onSaveFavourite,
-    onOpenInFolder
+    onOpenInFolder,
+    onSelectReplay
   } = props
 
   const [tab, setTab] = useState<TabId>('overview')
@@ -170,9 +174,12 @@ export function DetailPane(props: Props): JSX.Element {
         ) : tab === 'graphs' ? (
           <GraphsTab meta={meta} />
         ) : tab === 'analytics' ? (
-          <div className="analytics-tab">
-            <p className="stats-empty">User analytics coming soon.</p>
-          </div>
+          <AnalyticsTab
+            meta={meta}
+            playerName={settings?.analyticsPlayerName ?? ''}
+            onSetPlayer={(n) => onToggleSetting({ analyticsPlayerName: n })}
+            onOpenReplay={onSelectReplay}
+          />
         ) : (
           <DetailsTab
             meta={meta}

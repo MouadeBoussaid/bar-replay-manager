@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { readdirSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { ClearPreview, ClearResult, Settings } from '../shared/types'
+import { buildPlayerReport, indexedPlayerNames } from './analytics'
 import { resolveFavouriteKey } from './favourites'
 import { startWatch, stopWatch } from './folder-watcher'
 import { playReplay } from './launch'
@@ -51,6 +52,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   )
   ipcMain.handle('map:info', (_e, name: string) => getMapInfo(name))
   ipcMain.handle('replay:graph', (_e, filePath: string) => buildReplayGraph(filePath))
+  ipcMain.handle('analytics:playerNames', () => indexedPlayerNames())
+  ipcMain.handle('analytics:playerReport', (_e, name: string, scope) =>
+    buildPlayerReport(name, scope)
+  )
 
   ipcMain.handle('replay:trash', async (_e, filePath: string) => {
     await shell.trashItem(filePath)
