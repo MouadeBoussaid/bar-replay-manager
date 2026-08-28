@@ -174,7 +174,8 @@ export interface Api {
   pickFolder(): Promise<string | null>
   detectDefaultFolder(): Promise<string | null>
   listReplays(folder: string): Promise<ReplayListItem[]>
-  getReplayDetail(filePath: string): Promise<ReplayMeta>
+  /** Full metadata for one replay; null when the file no longer exists. */
+  getReplayDetail(filePath: string): Promise<ReplayMeta | null>
   /** Launch the local BAR client with this replay file. */
   playReplay(filePath: string): Promise<PlayLaunchResult>
   /** Move a single replay file to the Recycle Bin. */

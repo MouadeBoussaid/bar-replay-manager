@@ -64,6 +64,8 @@ export function App(): JSX.Element {
         prevCount.current = next.length
         setItems(next)
         setLastScanAt(Date.now())
+        // Drop a selection whose file is gone (deleted here or externally).
+        setSelected((cur) => (cur && next.some((i) => i.filePath === cur) ? cur : null))
       } finally {
         setScanning(false)
         setProgress(null)
@@ -112,6 +114,10 @@ export function App(): JSX.Element {
     window.api
       .getReplayDetail(selected)
       .then((d) => !cancelled && setDetail(d))
+      .catch(() => {
+        // File may have been deleted between selection and fetch — ignore.
+        if (!cancelled) setDetail(null)
+      })
       .finally(() => !cancelled && setDetailLoading(false))
     return () => {
       cancelled = true

@@ -34,9 +34,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('replays:list', (_e, folder: string) => listReplays(folder))
 
-  ipcMain.handle('replay:detail', (_e, filePath: string) => {
+  ipcMain.handle('replay:detail', async (_e, filePath: string) => {
     const { onlineEnrich } = store.getSettings()
-    return getReplayDetail(filePath, onlineEnrich)
+    try {
+      return await getReplayDetail(filePath, onlineEnrich)
+    } catch (err) {
+      // The file can vanish between selection and this call (e.g. bulk delete).
+      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return null
+      throw err
+    }
   })
 
   ipcMain.handle('replay:play', (_e, filePath: string) => playReplay(filePath))
