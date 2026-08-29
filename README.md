@@ -26,7 +26,10 @@ replay files.
   one replay.
 - Everything is parsed locally from the file — including the demo's per-team
   statistics trailer. **Online lookup** additionally cross-references
-  `api.bar-rts.com` for verified ratings, colours, flags and start positions.
+  `api.bar-rts.com` for verified ratings, colours, flags, the real in-game
+  faction and start positions. With it on, a slow background pass (1 request /
+  5 s) backfills those server records for every replay so Player analytics fills
+  in over time.
 - Minimap textures and map metadata come from the bar-rts map API, cached under
   `%APPDATA%/bar-replay-manager/map-cache`.
 - **Play replay** launches the local BAR client (or the `.sdfz` file association).

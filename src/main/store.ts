@@ -77,9 +77,26 @@ class Store {
     return structuredClone(DEFAULTS)
   }
 
+  private writesPaused = false
+
   private scheduleWrite(): void {
+    if (this.writesPaused) return
     if (this.writeTimer) clearTimeout(this.writeTimer)
     this.writeTimer = setTimeout(() => this.flush(), 250)
+  }
+
+  /**
+   * Suspend the debounced auto-write. For the background bar-rts backfill, which
+   * would otherwise rewrite the whole (tens of MB) db once per fetched record.
+   * The caller must `flush()` periodically and call `resumeWrites()` when done.
+   */
+  pauseWrites(): void {
+    this.writesPaused = true
+  }
+
+  resumeWrites(): void {
+    this.writesPaused = false
+    this.scheduleWrite()
   }
 
   flush(): void {

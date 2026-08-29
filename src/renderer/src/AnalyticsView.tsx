@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AnalyticsScope,
+  BackfillProgress,
   PlayerReport,
   ReportBar,
   ReportStartMap
@@ -36,10 +37,13 @@ export function AnalyticsView({
     playerName ? 'loading' : null
   )
   const [names, setNames] = useState<string[]>([])
+  const [backfill, setBackfill] = useState<BackfillProgress | null>(null)
 
   useEffect(() => {
     window.api.getIndexedPlayerNames().then(setNames).catch(() => setNames([]))
   }, [])
+
+  useEffect(() => window.api.onAnalyticsBackfill(setBackfill), [])
 
   useEffect(() => {
     if (!playerName.trim()) {
@@ -56,6 +60,24 @@ export function AnalyticsView({
       cancelled = true
     }
   }, [playerName, scope])
+
+  // Silently swap in a fresh report each time the background backfill rebuilds
+  // the index — no skeleton flash.
+  const rev = backfill?.indexRev ?? 0
+  const prevRev = useRef(0)
+  useEffect(() => {
+    if (rev === prevRev.current) return
+    prevRev.current = rev
+    if (!playerName.trim()) return
+    let cancelled = false
+    window.api
+      .getPlayerReport(playerName, scope)
+      .then((r) => !cancelled && r.found && setReport(r))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [rev, playerName, scope])
 
   const suggestions = suggestedPlayer ? [suggestedPlayer] : []
   if (!playerName.trim()) {
@@ -91,6 +113,15 @@ export function AnalyticsView({
         onScope={setScope}
         onSetPlayer={onSetPlayer}
       />
+
+      {backfill?.active && (
+        <div className="an-sync">
+          <span className="an-sync-dot" />
+          Syncing bar-rts data — {backfill.done.toLocaleString()} / {backfill.total.toLocaleString()}{' '}
+          games. Faction, start positions and roles fill in as this runs; the page refreshes
+          itself.
+        </div>
+      )}
 
       {report === 'loading' ? (
         <SkeletonBlocks />

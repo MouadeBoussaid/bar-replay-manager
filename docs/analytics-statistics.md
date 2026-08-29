@@ -51,6 +51,21 @@ read from the **cached bar-rts.com record** (`AllyTeams[].Players[].faction`) wh
 one is present — otherwise the appearance keeps the local `side` and is flagged
 `factionConfirmed = false`.
 
+### Background bar-rts backfill
+
+Three things need the **bar-rts.com record** for a game: the confirmed faction,
+per-player start positions, and start-position roles. That record is cached in
+`store.apiCache` — historically only when you opened that replay with **Online
+lookup** on, so coverage was sparse.
+
+After every folder scan, [`server-backfill.ts`](../src/main/server-backfill.ts)
+now walks every indexed game that has a `gameId` but no cached record and fetches
+it — **one request every 5 s** (deliberately gentle; a first run of a large
+folder takes ~an hour), rebuilding the analytics index every 20 fetches. It stops
+early if Online lookup is turned off or the API fails 5× in a row, and resumes on
+the next scan. The Player-analytics view shows a "Syncing bar-rts data — N / M"
+banner while it runs and refreshes itself as records land.
+
 ### Per-appearance row
 
 The unit of aggregation is an **appearance** — one player's line in one replay
@@ -204,8 +219,8 @@ Armada → Cortex → Legion → Random.
     lookup…"* (bars still drawn from local `side`, usually all-Armada)
   * some confirmed → *"From N of M games with a confirmed in-game faction."*
   * all confirmed → no footnote
-  Confirmed coverage grows as you open replays with Online lookup on; press
-  <kbd>F5</kbd> to rebuild the index.
+  Confirmed coverage climbs on its own via the background backfill (see §1) and
+  when you open replays with Online lookup on.
 * **`N g`** — games on that faction (within whichever set was used).
 * **win rate** — `wins / (wins + losses)` among those games; `—` if none decided.
   Coloured green ≥ 54%, red ≤ 46%, neutral between (and always neutral when thin).
@@ -244,8 +259,8 @@ The local demo only carries the **ally-team start box** — the whole team's hal
 of the map, shared by every teammate — so it cannot tell one player's spot from
 another's. Per-player start positions are read instead from the **cached
 bar-rts.com record** (`AllyTeams[].Players[].startPos` + `Map.width/height`),
-stored in `store.apiCache` when you open that replay with **online enrichment**
-on. Games with no cached record contribute nothing here (`serverStartPositions`
+filled in by the background backfill (§1) and by opening replays with Online
+lookup on. Games with no cached record contribute nothing here (`serverPlayerData`
 in [`analytics.ts`](../src/main/analytics.ts)).
 
 * Normalised coords for plotting: `x = startPos.x / (Map.width × 512)`,

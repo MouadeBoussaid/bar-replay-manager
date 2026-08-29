@@ -11,9 +11,12 @@ import { buildReplayGraph } from './replay-graph'
 import { detectDefaultFolder } from './paths'
 import { getReplayDetail } from './replay-parser'
 import { listReplays } from './replay-scanner'
+import { setBackfillNotifier } from './server-backfill'
 import { store } from './store'
 
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
+  setBackfillNotifier((p) => getWindow()?.webContents.send('analytics:backfill', p))
+
   ipcMain.handle('settings:get', () => store.getSettings())
   ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => store.setSettings(patch))
 

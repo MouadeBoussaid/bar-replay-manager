@@ -1571,6 +1571,34 @@ body.dragging-divider * {
   font: 400 9px var(--sans);
   color: var(--text-faint);
 }
+.an-sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 225, 77, 0.06);
+  border: 1px solid rgba(255, 225, 77, 0.18);
+  border-radius: 3px;
+  font: 400 10.5px var(--sans);
+  color: var(--text-muted);
+}
+.an-sync-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: an-sync-pulse 1.4s ease-in-out infinite;
+}
+@keyframes an-sync-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 .an-empty-line {
   padding: 8px 2px;
   font: 400 10.5px var(--sans);

@@ -283,6 +283,20 @@ export interface PlayerReport {
   appearances: ReportAppearance[]
 }
 
+/** Progress of the slow background bar-rts.com cache backfill. */
+export interface BackfillProgress {
+  /** True while requests are still in flight. */
+  active: boolean
+  /** Games with a cached server record so far. */
+  done: number
+  /** Games with a gameId (the target). */
+  total: number
+  /** Records fetched during the current pass. */
+  fetched: number
+  /** Bumps each time the analytics index is rebuilt — a cue to re-fetch reports. */
+  indexRev: number
+}
+
 export interface MapInfo {
   /** Map size in map units; multiply by 512 for world elmos. */
   width: number
@@ -335,6 +349,8 @@ export interface Api {
   getIndexedPlayerNames(): Promise<string[]>
   /** Aggregated playstyle report for one player. */
   getPlayerReport(name: string, scope: AnalyticsScope): Promise<PlayerReport>
+  /** Progress of the background bar-rts backfill. Returns an unsubscribe function. */
+  onAnalyticsBackfill(cb: (p: BackfillProgress) => void): () => void
   windowMinimize(): void
   windowToggleMaximize(): void
   windowClose(): void

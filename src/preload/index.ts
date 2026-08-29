@@ -40,6 +40,11 @@ const api: Api = {
     ipcRenderer.on('replays:scan-progress', listener)
     return () => ipcRenderer.removeListener('replays:scan-progress', listener)
   },
+  onAnalyticsBackfill: (cb) => {
+    const listener = (_e: unknown, p: Parameters<typeof cb>[0]): void => cb(p)
+    ipcRenderer.on('analytics:backfill', listener)
+    return () => ipcRenderer.removeListener('analytics:backfill', listener)
+  },
   openInFolder: (filePath) => ipcRenderer.invoke('shell:showItem', filePath)
 }
 

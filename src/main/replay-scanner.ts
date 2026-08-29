@@ -6,6 +6,7 @@ import { teamColorNames } from '../shared/team-colors'
 import { isAiReplay, setAnalyticsIndex } from './analytics'
 import { favouriteKeyForFile } from './favourites'
 import { parseLocal } from './replay-parser'
+import { scheduleServerBackfill } from './server-backfill'
 import { store } from './store'
 
 // 2026-08-26_22-56-46-123_All That Glitters v2.2.3_2026.07.04.sdfz
@@ -118,6 +119,7 @@ export function listReplays(folder: string): ReplayListItem[] {
 
   broadcastProgress(names.length, names.length)
   setAnalyticsIndex(metas)
+  scheduleServerBackfill(metas)
 
   items.sort(
     (a, b) =>
