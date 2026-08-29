@@ -115,6 +115,9 @@ export interface ReplayListItem {
   durationMs: number | null
   engineTag: string | null
   playerNames: string[]
+  /** Player names grouped by ally team, same order as `teamSizes` — lets the UI
+   *  tell which side a given player (e.g. the perspective player) was on. */
+  teamPlayerNames: string[][]
   playerCount: number | null
   /** Ally-team sizes, e.g. [8, 8] — drives the "8v8" format label. */
   teamSizes: number[]

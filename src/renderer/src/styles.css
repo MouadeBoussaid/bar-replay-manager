@@ -379,15 +379,49 @@ body.dragging-divider * {
   transition: background 120ms ease-out;
 }
 .row-zebra {
-  background: var(--bg-row-zebra);
+  background-color: var(--bg-row-zebra);
 }
 .row:hover {
-  background: var(--bg-row-hover);
+  background-color: var(--bg-row-hover);
 }
 .row-selected,
 .row-selected.row-zebra {
-  background: var(--bg-row-selected);
+  background-color: var(--bg-row-selected);
   border-left-color: var(--accent);
+}
+/* Perspective-player outcome tint — layered over the row's base colour so zebra,
+   hover and selection still read through. */
+.row-persp-win {
+  background-image: linear-gradient(
+    90deg,
+    rgba(74, 200, 110, 0.14),
+    rgba(74, 200, 110, 0.035) 48%,
+    transparent 78%
+  );
+}
+.row-persp-loss {
+  background-image: linear-gradient(
+    90deg,
+    rgba(228, 80, 70, 0.14),
+    rgba(228, 80, 70, 0.035) 48%,
+    transparent 78%
+  );
+}
+.row-persp-win:hover {
+  background-image: linear-gradient(
+    90deg,
+    rgba(74, 200, 110, 0.2),
+    rgba(74, 200, 110, 0.055) 48%,
+    transparent 78%
+  );
+}
+.row-persp-loss:hover {
+  background-image: linear-gradient(
+    90deg,
+    rgba(228, 80, 70, 0.2),
+    rgba(228, 80, 70, 0.055) 48%,
+    transparent 78%
+  );
 }
 .row-selected .row-map {
   color: var(--accent);

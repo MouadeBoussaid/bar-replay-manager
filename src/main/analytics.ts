@@ -79,8 +79,22 @@ export function indexedPlayerNames(): string[] {
 
 // ---- extraction -------------------------------------------------------------
 
+/** Smallest per-side player count that still counts as a big-team game. */
+const MIN_TEAM_SIZE = 6
+
+/**
+ * True for a large 2-team game (8v8 and the odd 6v6 / 7v7). Duels, small-team
+ * modes (1v1 … 5v5) and FFA are a different game and are kept out of analytics.
+ */
+function isBigTeamGame(meta: ReplayMeta): boolean {
+  return (
+    meta.allyTeams.length === 2 &&
+    meta.allyTeams.every((t) => t.players.length >= MIN_TEAM_SIZE)
+  )
+}
+
 function extractAppearances(meta: ReplayMeta): Appearance[] {
-  if (meta.parseError || meta.allyTeams.length === 0 || isAiReplay(meta)) return []
+  if (meta.parseError || isAiReplay(meta) || !isBigTeamGame(meta)) return []
   const colors = teamColorNames(meta)
   const fmt = meta.allyTeams.map((t) => t.players.length).join('v')
   const serverData = serverPlayerData(meta.gameId)

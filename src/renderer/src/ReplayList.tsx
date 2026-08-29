@@ -271,6 +271,7 @@ export function ReplayList(props: Props): JSX.Element {
                     item={r.item}
                     selected={r.item.filePath === selectedId}
                     zebra={(virtual.start + i) % 2 === 1}
+                    perspectiveName={groupByPlayer}
                     onSelect={() => onSelect(r.item.filePath)}
                     onToggleFavourite={() => onToggleFavourite(r.item.filePath)}
                   />
@@ -330,16 +331,19 @@ function Row({
   item,
   selected,
   zebra,
+  perspectiveName,
   onSelect,
   onToggleFavourite
 }: {
   item: ReplayListItem
   selected: boolean
   zebra: boolean
+  perspectiveName: string
   onSelect: () => void
   onToggleFavourite: () => void
 }): JSX.Element {
   const format = fmtTeamFormat(item.teamSizes)
+  const perspResult = perspectiveOutcome(item, perspectiveName)
   const showWinner = item.winnerTeamOrdinal != null && item.winnerTeamOrdinal >= 0
   const winTone = item.winnerTeamColor
   const winLabel = winTone
@@ -353,7 +357,7 @@ function Row({
       id={`row-${hash(item.filePath)}`}
       className={`row ${selected ? 'row-selected' : ''} ${zebra ? 'row-zebra' : ''} ${
         item.parseError ? 'row-error' : ''
-      }`}
+      } ${perspResult ? `row-persp-${perspResult}` : ''}`}
       role="option"
       aria-selected={selected}
       onClick={onSelect}
@@ -435,6 +439,24 @@ function EmptyState({
       </button>
     </div>
   )
+}
+
+/**
+ * Did the perspective player win or lose this game? `null` when there is no
+ * perspective player set, they didn't play (spectated), or the game was a draw /
+ * unparsed.
+ */
+function perspectiveOutcome(
+  item: ReplayListItem,
+  perspectiveName: string
+): 'win' | 'loss' | null {
+  const name = perspectiveName.trim().toLowerCase()
+  if (!name || item.winnerTeamOrdinal == null) return null
+  const teamIdx = item.teamPlayerNames.findIndex((names) =>
+    names.some((n) => n.toLowerCase() === name)
+  )
+  if (teamIdx < 0) return null
+  return teamIdx === item.winnerTeamOrdinal ? 'win' : 'loss'
 }
 
 function fileSize(bytes: number): string {

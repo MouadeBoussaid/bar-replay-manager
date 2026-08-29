@@ -92,7 +92,10 @@ allies and enemies (human names only).
 
 * **AI games.** Any replay with a bot participant, or a player whose name ends in
   `AI`, is dropped entirely (`isAiReplay`).
-* **Unparsed / parse-error replays** and replays with zero ally-teams.
+* **Non-big-team games.** Only 2-ally-team games with **≥ 6 players per side**
+  (8v8, and the odd 6v6 / 7v7) are indexed — duels, small-team modes and FFA
+  are a different game (`isBigTeamGame` / `MIN_TEAM_SIZE`).
+* **Unparsed / parse-error replays.**
 * **Spectators** — only players on an ally-team are indexed.
 
 ### Scope selector (per BAR season, All time, Last 50 games)
@@ -386,7 +389,7 @@ scrolls all.
 |---|---|
 | Date | appearance start time |
 | Map | version-stripped map name |
-| Fmt | ally-team sizes joined with `v` (`8v8`, `3v3v3`, `FFA`) |
+| Fmt | ally-team sizes joined with `v` — effectively always `8v8` after the big-team filter |
 | Side | BAR blue/red label for the player's team — from the captain's colour, defaulting team 1 → blue in a 2-team game (`teamColorNames`) |
 | Fac | first letter of the normalised faction |
 | Pos | curated start-position role (`air` / `front` / `front/tech` / …), or `—` when unknown / map not covered (see §5b · Roles) |
@@ -432,6 +435,7 @@ thinSample        = scoped.length < 20
 
 | Thing | Value |
 |---|---|
+| Min players per side to index a game | 6 (`MIN_TEAM_SIZE`, 2 ally teams only) |
 | Thin-sample cutoff | 20 games |
 | Win-rate green / red | ≥ 54% / ≤ 46% |
 | Form chart window | last 50 games |

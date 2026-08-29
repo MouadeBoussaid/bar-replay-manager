@@ -102,6 +102,7 @@ export function listReplays(folder: string): ReplayListItem[] {
       durationMs: meta.durationMs || null,
       engineTag: meta.engineVersion || engineTag,
       playerNames: players.map((p) => p.name),
+      teamPlayerNames: meta.allyTeams.map((t) => t.players.map((p) => p.name)),
       playerCount: players.length || null,
       teamSizes: meta.allyTeams.map((t) => t.players.length),
       avgOs,
