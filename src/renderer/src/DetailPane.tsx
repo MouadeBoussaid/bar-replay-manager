@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
-import { AnalyticsTab } from './AnalyticsTab'
 import { DetailsTab } from './DetailsTab'
 import { GraphsTab } from './GraphsTab'
 import { OverviewTab } from './OverviewTab'
@@ -21,18 +20,12 @@ interface Props {
   onToggleFavourite: () => void
   onSaveFavourite: (data: { note: string; tags: string[] }) => void
   onOpenInFolder: () => void
-  /** Select a different replay in the left list (used by the analytics tab). */
-  onSelectReplay: (filePath: string) => void
-  /** User-analytics lookup name (session state, separate from the perspective player). */
-  analyticsPlayer: string
-  onSetAnalyticsPlayer: (name: string) => void
 }
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'stats', label: 'Stats' },
   { id: 'graphs', label: 'Graphs' },
-  { id: 'analytics', label: 'User analytics' },
   { id: 'details', label: 'Details' }
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -50,51 +43,22 @@ export function DetailPane(props: Props): JSX.Element {
     onToggleSetting,
     onToggleFavourite,
     onSaveFavourite,
-    onOpenInFolder,
-    onSelectReplay,
-    analyticsPlayer,
-    onSetAnalyticsPlayer
+    onOpenInFolder
   } = props
 
   const [tab, setTab] = useState<TabId>('overview')
-  const [emptyAnalytics, setEmptyAnalytics] = useState(false)
   useEffect(() => {
-    if (listItem) {
-      setTab('overview')
-      setEmptyAnalytics(false)
-    }
+    if (listItem) setTab('overview')
   }, [listItem?.filePath])
 
   const mapName = meta?.map.name ?? listItem?.mapName ?? null
   const heroPhoto = useMapImage(mapName, 'mq')
 
   if (!listItem || !mapName) {
-    if (emptyAnalytics) {
-      return (
-        <section className="detail-pane">
-          <div className="empty-analytics-bar">
-            <button className="btn-ghost" onClick={() => setEmptyAnalytics(false)}>
-              ‹ Back
-            </button>
-          </div>
-          <div className="tab-panel">
-            <AnalyticsTab
-              meta={null}
-              playerName={analyticsPlayer}
-              onSetPlayer={onSetAnalyticsPlayer}
-              onOpenReplay={onSelectReplay}
-            />
-          </div>
-        </section>
-      )
-    }
     return (
       <section className="detail-pane">
         <div className="detail-empty">
           <p>Select a replay.</p>
-          <button className="detail-empty-link" onClick={() => setEmptyAnalytics(true)}>
-            or look up a player in User analytics
-          </button>
         </div>
       </section>
     )
@@ -208,13 +172,6 @@ export function DetailPane(props: Props): JSX.Element {
           <StatsTab meta={meta} />
         ) : tab === 'graphs' ? (
           <GraphsTab meta={meta} />
-        ) : tab === 'analytics' ? (
-          <AnalyticsTab
-            meta={meta}
-            playerName={analyticsPlayer}
-            onSetPlayer={onSetAnalyticsPlayer}
-            onOpenReplay={onSelectReplay}
-          />
         ) : (
           <DetailsTab
             meta={meta}

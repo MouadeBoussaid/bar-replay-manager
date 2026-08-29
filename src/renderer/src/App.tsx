@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnalyticsView } from './AnalyticsView'
 import { ClearDialog } from './ClearDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DetailPane } from './DetailPane'
@@ -26,7 +27,9 @@ export function App(): JSX.Element {
 
   const [showClear, setShowClear] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  /** User-analytics lookup name — session only, unrelated to the perspective player. */
+  /** Top-level view: the replay list/detail, or the standalone player-analytics page. */
+  const [view, setView] = useState<'replays' | 'analytics'>('replays')
+  /** Player-analytics lookup name — session only, unrelated to the perspective player. */
   const [analyticsPlayer, setAnalyticsPlayer] = useState('')
   const [pendingDelete, setPendingDelete] = useState<ReplayListItem | null>(null)
   const [pendingDrawDelete, setPendingDrawDelete] = useState(false)
@@ -325,64 +328,78 @@ export function App(): JSX.Element {
 
   return (
     <div className="app">
-      <TitleBar onOpenSettings={() => setShowSettings(true)} />
-      <div className="workspace" style={{ ['--pane-width' as string]: `${paneWidth}px` }}>
-        <ReplayList
-          items={filtered}
-          totalItems={items.length}
-          totalBytes={totalBytes}
-          nonFavCount={nonFavCount}
-          drawCount={drawItems.length}
-          aiCount={aiItems.length}
-          groupByPlayer={settings?.perspectivePlayerName ?? ''}
-          selectedId={selected}
-          folder={folder}
-          lastScanAt={lastScanAt}
-          scanning={scanning}
-          progress={progress}
-          firstLoad={firstLoad}
-          query={query}
-          sort={sort}
-          onQuery={setQuery}
-          onSort={setSort}
-          onSelect={setSelected}
-          onToggleFavourite={(fp) => void toggleFavourite(fp)}
-          onRefresh={() => void scan(folder)}
-          onChooseFolder={() => void changeFolder()}
-          onClearNonFavourites={() => setShowClear(true)}
-          onDeleteDraws={() => setPendingDrawDelete(true)}
-          onDeleteAi={() => setPendingAiDelete(true)}
-          onKeyNav={onListKeyNav}
-        />
+      <TitleBar
+        onOpenSettings={() => setShowSettings(true)}
+        view={view}
+        onSetView={setView}
+      />
 
-        <div
-          className="divider no-drag"
-          role="separator"
-          aria-orientation="vertical"
-          onMouseDown={() => {
-            dragging.current = true
-            document.body.classList.add('dragging-divider')
+      {view === 'analytics' ? (
+        <AnalyticsView
+          playerName={analyticsPlayer || (settings?.perspectivePlayerName ?? '')}
+          onSetPlayer={setAnalyticsPlayer}
+          suggestedPlayer={settings?.perspectivePlayerName ?? ''}
+          onOpenReplay={(fp) => {
+            setSelected(fp)
+            setView('replays')
           }}
         />
+      ) : (
+        <div className="workspace" style={{ ['--pane-width' as string]: `${paneWidth}px` }}>
+          <ReplayList
+            items={filtered}
+            totalItems={items.length}
+            totalBytes={totalBytes}
+            nonFavCount={nonFavCount}
+            drawCount={drawItems.length}
+            aiCount={aiItems.length}
+            groupByPlayer={settings?.perspectivePlayerName ?? ''}
+            selectedId={selected}
+            folder={folder}
+            lastScanAt={lastScanAt}
+            scanning={scanning}
+            progress={progress}
+            firstLoad={firstLoad}
+            query={query}
+            sort={sort}
+            onQuery={setQuery}
+            onSort={setSort}
+            onSelect={setSelected}
+            onToggleFavourite={(fp) => void toggleFavourite(fp)}
+            onRefresh={() => void scan(folder)}
+            onChooseFolder={() => void changeFolder()}
+            onClearNonFavourites={() => setShowClear(true)}
+            onDeleteDraws={() => setPendingDrawDelete(true)}
+            onDeleteAi={() => setPendingAiDelete(true)}
+            onKeyNav={onListKeyNav}
+          />
 
-        <DetailPane
-          meta={detail}
-          loading={detailLoading}
-          listItem={selectedItem}
-          settings={settings}
-          launchError={launchError}
-          playState={playState}
-          onPlay={(fp) => void play(fp)}
-          onDismissLaunchError={() => setLaunchError(null)}
-          onToggleSetting={(patch) => void patchSettings(patch)}
-          onToggleFavourite={() => selected && void toggleFavourite(selected)}
-          onSaveFavourite={(d) => void saveFavourite(d)}
-          onOpenInFolder={() => selected && void window.api.openInFolder(selected)}
-          onSelectReplay={setSelected}
-          analyticsPlayer={analyticsPlayer}
-          onSetAnalyticsPlayer={setAnalyticsPlayer}
-        />
-      </div>
+          <div
+            className="divider no-drag"
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={() => {
+              dragging.current = true
+              document.body.classList.add('dragging-divider')
+            }}
+          />
+
+          <DetailPane
+            meta={detail}
+            loading={detailLoading}
+            listItem={selectedItem}
+            settings={settings}
+            launchError={launchError}
+            playState={playState}
+            onPlay={(fp) => void play(fp)}
+            onDismissLaunchError={() => setLaunchError(null)}
+            onToggleSetting={(patch) => void patchSettings(patch)}
+            onToggleFavourite={() => selected && void toggleFavourite(selected)}
+            onSaveFavourite={(d) => void saveFavourite(d)}
+            onOpenInFolder={() => selected && void window.api.openInFolder(selected)}
+          />
+        </div>
+      )}
 
       {toast && <div className="toast">{toast}</div>}
 

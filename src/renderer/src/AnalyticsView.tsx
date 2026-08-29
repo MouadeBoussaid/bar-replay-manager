@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type {
   AnalyticsScope,
   PlayerReport,
-  ReplayMeta,
   ReportBar,
   ReportStartMap
 } from '../../shared/types'
@@ -11,12 +10,13 @@ import { rankPlayerNames } from './nameMatch'
 import { useMapImage } from './useMapImage'
 
 interface Props {
-  /** The selected replay (seeds the quick-pick chips), or null when none is selected. */
-  meta: ReplayMeta | null
-  /** Currently chosen analytics player (from settings). Empty = no player. */
+  /** Player whose all-replays profile to show. Empty = show the picker. */
   playerName: string
   onSetPlayer: (name: string) => void
+  /** Jump to a replay in the list view. */
   onOpenReplay: (filePath: string) => void
+  /** Optional one-click suggestion for the empty state (e.g. the perspective player). */
+  suggestedPlayer?: string
 }
 
 const SCOPES: [AnalyticsScope, string][] = [
@@ -25,7 +25,12 @@ const SCOPES: [AnalyticsScope, string][] = [
   ['last50', 'Last 50 games']
 ]
 
-export function AnalyticsTab({ meta, playerName, onSetPlayer, onOpenReplay }: Props): JSX.Element {
+export function AnalyticsView({
+  playerName,
+  onSetPlayer,
+  onOpenReplay,
+  suggestedPlayer
+}: Props): JSX.Element {
   const [scope, setScope] = useState<AnalyticsScope>('all')
   const [report, setReport] = useState<PlayerReport | null | 'loading'>(
     playerName ? 'loading' : null
@@ -52,15 +57,22 @@ export function AnalyticsTab({ meta, playerName, onSetPlayer, onOpenReplay }: Pr
     }
   }, [playerName, scope])
 
+  const suggestions = suggestedPlayer ? [suggestedPlayer] : []
   if (!playerName.trim()) {
     return (
-      <EmptyState meta={meta} names={names} onSetPlayer={onSetPlayer} notFound={false} query="" />
+      <EmptyState
+        suggested={suggestions}
+        names={names}
+        onSetPlayer={onSetPlayer}
+        notFound={false}
+        query=""
+      />
     )
   }
   if (report === null || (report !== 'loading' && !report.found)) {
     return (
       <EmptyState
-        meta={meta}
+        suggested={suggestions}
         names={names}
         onSetPlayer={onSetPlayer}
         notFound={report !== null}
@@ -765,31 +777,18 @@ function Appearances({
 /* --------------------------------------------------------------- states */
 
 function EmptyState({
-  meta,
+  suggested,
   names,
   onSetPlayer,
   notFound,
   query
 }: {
-  meta: ReplayMeta | null
+  suggested: string[]
   names: string[]
   onSetPlayer: (n: string) => void
   notFound: boolean
   query: string
 }): JSX.Element {
-  const picks = useMemo(
-    () =>
-      meta
-        ? [
-            ...new Set(
-              meta.allyTeams.flatMap((t) =>
-                t.players.filter((p) => !p.isAi).map((p) => p.name)
-              )
-            )
-          ].slice(0, 8)
-        : [],
-    [meta]
-  )
   return (
     <div className="analytics-tab an-empty">
       <div className="an-empty-inner">
@@ -797,11 +796,11 @@ function EmptyState({
         <p className="an-empty-help">
           {notFound
             ? `No indexed replays for “${query.trim()}”.`
-            : 'Pick a player to see their playstyle across every indexed replay.'}
+            : 'Look up a player to see their performance across every indexed replay.'}
         </p>
-        {picks.length > 0 && (
+        {suggested.length > 0 && (
           <div className="an-empty-picks">
-            {picks.map((n) => (
+            {suggested.map((n) => (
               <button key={n} onClick={() => onSetPlayer(n)}>
                 {n}
               </button>

@@ -19,6 +19,11 @@ replay files.
   total or per-interval, linear or log, with a hover readout.
 - **Details** tab: engine + game version, game id, spectators, and the
   Host / SPADS / Game / Map settings.
+- **Player analytics** view (title-bar switch): a standalone profile for any
+  player across *every* indexed replay — win rate, per-metric averages vs the
+  indexed baseline, form over time, faction / duration / per-map start-position
+  breakdowns, most-played maps, and team-mate / opponent history. Never scoped to
+  one replay.
 - Everything is parsed locally from the file — including the demo's per-team
   statistics trailer. **Online lookup** additionally cross-references
   `api.bar-rts.com` for verified ratings, colours, flags and start positions.
@@ -57,8 +62,9 @@ Requires Node 20+ (Node 22 LTS recommended).
 | `src/main/replay-scanner.ts` | Folder scan — parses each file on scan so list rows are rich |
 | `src/main/launch.ts` | Locate the BAR client + installed engines; spawn a replay |
 | `src/preload/` | `contextBridge` → `window.api` |
-| `src/renderer/src/` | React UI — `TitleBar`, `ReplayList`, `DetailPane` → `OverviewTab` / `DetailsTab` |
+| `src/renderer/src/` | React UI — `TitleBar`, `ReplayList`, `DetailPane` → `OverviewTab` / `DetailsTab`, and the standalone `AnalyticsView` |
 | `src/renderer/src/players.ts` | Per-player colour, team avg OS, roster + start-pip math |
+| `src/main/analytics.ts` / `map-roles.ts` | All-replays player aggregation + start-position role lookup |
 | `src/shared/types.ts` | IPC contract + data models |
 
 The visual layer follows `design_handoff_bar_replay_browser` (approved option 1b);

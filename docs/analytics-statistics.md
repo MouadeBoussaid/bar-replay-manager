@@ -1,11 +1,12 @@
-# User Analytics tab — statistics reference
+# Player analytics — statistics reference
 
-This document explains every number shown on the **User Analytics** tab and how it
-is derived from the replay files. The tab aggregates one player's performance
-across *every* locally-indexed replay.
+This document explains every number shown on the **Player analytics** view and how
+it is derived from the replay files. It is a standalone top-level view (switch to
+it from the title bar) that aggregates **one player's performance across every
+locally-indexed replay** — it is never scoped to a single selected replay.
 
 Code: [`src/main/analytics.ts`](../src/main/analytics.ts) (aggregation),
-[`src/renderer/src/AnalyticsTab.tsx`](../src/renderer/src/AnalyticsTab.tsx)
+[`src/renderer/src/AnalyticsView.tsx`](../src/renderer/src/AnalyticsView.tsx)
 (rendering), [`src/main/demo-header.ts`](../src/main/demo-header.ts) (raw stat
 extraction).
 
@@ -99,7 +100,7 @@ and an `OS` chip.
 demo's `winningAllyTeams` list. `true → win`, `false → loss`, unknown →
 `undecided`.
 
-**Thin sample:** if `scoped.length < 20` the tab shows only the averages grid and
+**Thin sample:** if `scoped.length < 20` the view shows only the averages grid and
 the appearances table, hides win-rate colouring, and prints a warning. All
 "derived" blocks (form, breakdowns, maps, company) require ≥ 20 games.
 
