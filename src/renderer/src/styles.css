@@ -1553,6 +1553,20 @@ body.dragging-divider * {
   text-transform: uppercase;
   color: #fff;
 }
+.analytics-tab [title] {
+  cursor: help;
+}
+.analytics-tab a[title],
+.analytics-tab button[title],
+.analytics-tab select[title],
+.analytics-tab .an-appear-row[title],
+.analytics-tab .segmented [title] {
+  cursor: pointer;
+}
+.analytics-tab .an-section-title[title] {
+  text-decoration: underline dotted var(--border-control);
+  text-underline-offset: 3px;
+}
 .an-kicker {
   font: 600 8.5px var(--sans);
   letter-spacing: 0.11em;
@@ -1745,6 +1759,12 @@ body.dragging-divider * {
   padding: 10px 12px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
+  cursor: help;
+}
+.an-avg .an-kicker {
+  display: inline-block;
+  border-bottom: 1px dotted var(--border-control);
+  padding-bottom: 1px;
 }
 .an-avg-val {
   margin-top: 5px;

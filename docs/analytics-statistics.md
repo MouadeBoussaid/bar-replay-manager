@@ -10,6 +10,11 @@ Code: [`src/main/analytics.ts`](../src/main/analytics.ts) (aggregation),
 (rendering), [`src/main/demo-header.ts`](../src/main/demo-header.ts) (raw stat
 extraction).
 
+Most labels in the view carry a hover tooltip (native `title`) with a short
+version of what's spelled out here — the metric cards, section headings, the
+Appearances column headers, and the individual bars / spots / rows. Section
+headings that have one are marked with a dotted underline.
+
 ---
 
 ## 1. Where the raw data comes from

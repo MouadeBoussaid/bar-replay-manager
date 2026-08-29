@@ -185,17 +185,31 @@ function Header({
       <div className="an-head-main">
         <div className="an-head-name-row">
           <span className="an-name">{playerName}</span>
-          {r?.os != null && <span className="an-os-chip">{r.os.toFixed(1)} OS</span>}
+          {r?.os != null && (
+            <span
+              className="an-os-chip"
+              title="OpenSkill rating from the player’s most recent rated game. Higher is stronger; the ladder average sits around 20–30."
+            >
+              {r.os.toFixed(1)} OS
+            </span>
+          )}
         </div>
-        <div className="an-meta-line">{meta}</div>
+        <div
+          className="an-meta-line"
+          title="Indexed replays this player appears in · wins–losses · win rate (undecided games excluded) · first and last game seen. Scoped by the selector on the right."
+        >
+          {meta}
+        </div>
       </div>
       <div className="an-head-right">
         <PlayerSearch value={playerName} names={names} onPick={onSetPlayer} />
-        <Segmented
-          value={scope}
-          onChange={(v) => onScope(v as AnalyticsScope)}
-          options={SCOPES}
-        />
+        <div title="Limit every panel below to this window of the player’s games.">
+          <Segmented
+            value={scope}
+            onChange={(v) => onScope(v as AnalyticsScope)}
+            options={SCOPES}
+          />
+        </div>
       </div>
     </div>
   )
@@ -267,14 +281,43 @@ function PlayerSearch({
 
 /* ------------------------------------------------------------- averages */
 
+/** Plain-language meaning of each averages-grid metric, keyed by METRICS[].key. */
+const METRIC_HELP: Record<string, string> = {
+  metal: 'Average total metal your team produced in a game — your raw economy output. Higher is better.',
+  energy: 'Average total energy your team produced in a game. Higher is better.',
+  mexcess:
+    'Average metal wasted while your storage sat full (over-production you never spent). Lower is better.',
+  dmg: 'Average total damage your team dealt in a game. Higher is better.',
+  dmgt: 'Average total damage your team took in a game. Lower is better.',
+  eff: 'Damage dealt ÷ damage taken, averaged per game. Over 100% means you out-trade your opponents. Higher is better.',
+  units: 'Average number of units your team produced in a game. Higher is better.',
+  cmd: 'Engine command count per game-minute — a rough stand-in for APM, not the same as BAR’s in-game APM figure.'
+}
+
+const BASELINE_HELP =
+  'Your average compared with the mean across every player in every indexed replay (the “baseline”). ' +
+  'Green means better for this metric, red means worse. Shown as a percent — or percentage points (pt) for Efficiency.'
+
+/** Meaning of each "Form over time" metric, keyed by FORM_METRICS[].key. */
+const FORM_METRIC_HELP: Record<string, string> = {
+  metalPerMin: 'Metal produced ÷ game length (minutes) — economy pace, comparable across games of any length.',
+  energyPerMin: 'Energy produced ÷ game length (minutes).',
+  damageDealt: 'Total damage dealt in the game.',
+  damageTaken: 'Total damage taken in the game.',
+  efficiency: 'Damage dealt ÷ damage taken × 100. Over 100% means you out-traded the enemy that game.',
+  cmdPerMin: 'Engine commands per game-minute — a rough APM proxy.',
+  unitsMade: 'Units produced in the game.',
+  os: 'Your OpenSkill rating at that game.'
+}
+
 function AveragesGrid({ report }: { report: PlayerReport }): JSX.Element {
   return (
     <div className="an-avgs">
       {report.averages.map((a) => (
-        <div className="an-avg" key={a.key}>
+        <div className="an-avg" key={a.key} title={METRIC_HELP[a.key] ?? a.label}>
           <div className="an-kicker">{a.label}</div>
           <div className="an-avg-val">{a.value}</div>
-          <div className="an-avg-delta">
+          <div className="an-avg-delta" title={BASELINE_HELP}>
             <span className={deltaClass(a.good, report.thinSample)}>{a.delta ?? '—'}</span>
             <span className="an-avg-vs">vs baseline</span>
           </div>
@@ -326,13 +369,19 @@ function FormOverTime({
   return (
     <div className="an-card an-form">
       <div className="an-card-head">
-        <span className="an-section-title">Form over time</span>
+        <span
+          className="an-section-title"
+          title="The chosen stat game-by-game across the player’s most recent games, oldest on the left. The strip under the chart marks win / loss; click a point or tick to open that replay."
+        >
+          Form over time
+        </span>
         <span className="an-sub">last {n} games</span>
         <div className="an-spacer" />
         <select
           className="sort-select"
           value={metric}
           onChange={(e) => setMetric(e.target.value)}
+          title={FORM_METRIC_HELP[metric] ?? 'Which per-game stat to plot.'}
         >
           {report.form.metrics.map((m) => (
             <option key={m.key} value={m.key}>
@@ -340,14 +389,16 @@ function FormOverTime({
             </option>
           ))}
         </select>
-        <Segmented
-          value={mode}
-          onChange={(v) => setMode(v as 'game' | 'roll')}
-          options={[
-            ['game', 'Per game'],
-            ['roll', 'Rolling 10']
-          ]}
-        />
+        <div title="Per game: the raw value each game. Rolling 10: a trailing average over the last 10 games, which smooths out single-game swings.">
+          <Segmented
+            value={mode}
+            onChange={(v) => setMode(v as 'game' | 'roll')}
+            options={[
+              ['game', 'Per game'],
+              ['roll', 'Rolling 10']
+            ]}
+          />
+        </div>
       </div>
 
       <div className="an-form-body">
@@ -449,6 +500,7 @@ function BreakdownRow({ report }: { report: PlayerReport }): JSX.Element {
     <div className="an-breakdown">
       <BarCard
         title="Faction"
+        titleHelp="How often you played each faction, from games where the in-game pick is confirmed via bar-rts. “g” = games; the right-hand figure is your win rate on that faction; bar width is share of games."
         bars={report.factions}
         thin={report.thinSample}
         accent
@@ -472,12 +524,14 @@ function factionNote(report: PlayerReport): string | undefined {
 
 function BarCard({
   title,
+  titleHelp,
   bars,
   thin,
   accent,
   footNote
 }: {
   title: string
+  titleHelp?: string
   bars: ReportBar[]
   thin: boolean
   accent?: boolean
@@ -485,10 +539,16 @@ function BarCard({
 }): JSX.Element {
   return (
     <div className="an-card">
-      <div className="an-section-title">{title}</div>
+      <div className="an-section-title" title={titleHelp}>
+        {title}
+      </div>
       <div className="an-bars">
         {bars.map((b) => (
-          <div key={b.label} className="an-bar-row">
+          <div
+            key={b.label}
+            className="an-bar-row"
+            title={`${b.label}: ${b.games} game${b.games === 1 ? '' : 's'} · ${fmtWr(b.winRate)} win rate`}
+          >
             <div className="an-bar-line">
               {b.letter && (
                 <span className="an-bar-letter" style={{ color: b.color }}>
@@ -520,10 +580,19 @@ function BarCard({
 function DurationCard({ report }: { report: PlayerReport }): JSX.Element {
   return (
     <div className="an-card">
-      <div className="an-section-title">Win rate by length</div>
+      <div
+        className="an-section-title"
+        title="Your win rate split by how long the game lasted. Bar height = win rate; the count under each bucket is how many games fell in it."
+      >
+        Win rate by length
+      </div>
       <div className="an-dur">
         {report.durations.map((d) => (
-          <div key={d.label} className="an-dur-col">
+          <div
+            key={d.label}
+            className="an-dur-col"
+            title={`${d.label}: ${d.games} game${d.games === 1 ? '' : 's'} · ${fmtWr(d.winRate)} win rate`}
+          >
             <span className={`an-dur-wr ${wrClass(d.winRate, report.thinSample)}`}>
               {fmtWr(d.winRate)}
             </span>
@@ -573,7 +642,12 @@ function StartHeatCard({ report }: { report: PlayerReport }): JSX.Element {
   return (
     <div className="an-card">
       <div className="an-card-head">
-        <span className="an-section-title">Start positions</span>
+        <span
+          className="an-section-title"
+          title="Where you deploy on each of your most-played maps, from the bar-rts start positions. Spots are your own deploy points clustered together and ranked by use — spot 1 is where you go most on that map. Roles (air / front / tech / sea) come from BAR’s map metadata. Everything is compared within one map only."
+        >
+          Start positions
+        </span>
         <span className="an-sub">where you deploy — each map compared only against its own spots</span>
       </div>
       <div className="an-startmap-list">
@@ -622,7 +696,13 @@ function StartMapRow({ map, thin }: { map: ReportStartMap; thin: boolean }): JSX
         </div>
         <div className="an-startspots">
           {map.spots.map((s, i) => (
-            <div key={i} className="an-startspot">
+            <div
+              key={i}
+              className="an-startspot"
+              title={`${spotLabel(s, i)} — ${s.games} of ${map.games} positioned games on ${map.name} (${Math.round(
+                (s.games / map.games) * 100
+              )}%) · ${fmtWr(s.winRate)} win rate from this spot`}
+            >
               <span className="an-startspot-rank">{i + 1}</span>
               <span className="an-startspot-label">{spotLabel(s, i)}</span>
               <span className="an-spacer" />
@@ -654,13 +734,22 @@ function MapsCompanyRow({ report }: { report: PlayerReport }): JSX.Element {
     <div className="an-maps-company">
       <div className="an-card">
         <div className="an-card-head">
-          <span className="an-section-title">Maps</span>
+          <span
+            className="an-section-title"
+            title="Your most-played maps (20+ games each). Bar and figure are your win rate on that map."
+          >
+            Maps
+          </span>
           <span className="an-sub">most played · min 20 games</span>
         </div>
         <div className="an-map-rows">
           {report.maps.length === 0 && <div className="an-empty-line">No map with 20+ games yet.</div>}
           {report.maps.map((m, i) => (
-            <div key={m.name} className={`an-map-row ${i % 2 ? 'an-zebra' : ''}`}>
+            <div
+              key={m.name}
+              className={`an-map-row ${i % 2 ? 'an-zebra' : ''}`}
+              title={`${m.name}: ${m.games} games · ${fmtWr(m.winRate)} win rate`}
+            >
               <span className="an-map-thumb" />
               <span className="an-map-name">{m.name}</span>
               <span className="an-spacer" />
@@ -681,7 +770,12 @@ function MapsCompanyRow({ report }: { report: PlayerReport }): JSX.Element {
 
       <div className="an-card">
         <div className="an-card-head">
-          <span className="an-section-title">Company</span>
+          <span
+            className="an-section-title"
+            title="Team-mates you’ve played alongside most, and opponents you’ve faced most (15+ shared games each). The figure is your win rate in those shared games — so “Allied with” near 50% is normal for a frequent duo; well above means you win together, and for “Against” it’s how often you beat them."
+          >
+            Company
+          </span>
           <span className="an-sub">win rate with / against</span>
         </div>
         <div className="an-company">
@@ -747,7 +841,12 @@ function Appearances({
   return (
     <div className="an-card an-appear">
       <div className="an-card-head">
-        <span className="an-section-title">Appearances</span>
+        <span
+          className="an-section-title"
+          title="Every scoped game for this player, newest first. Metal / Dmg are that game’s team totals; Eff is damage dealt ÷ taken (green when at or above your own average, red below); Pos is the start-position role; CMD/min ≈ APM."
+        >
+          Appearances
+        </span>
         <span className="an-sub">click a row to open that replay</span>
         <div className="an-spacer" />
         <Segmented
@@ -764,16 +863,28 @@ function Appearances({
         <div className="an-appear-grid an-appear-head">
           <span>Date</span>
           <span>Map</span>
-          <span>Fmt</span>
-          <span>Side</span>
-          <span>Fac</span>
-          <span>Pos</span>
+          <span title="Team format — ally-team sizes, e.g. 8v8.">Fmt</span>
+          <span title="BAR team colour of your side (blue / red).">Side</span>
+          <span title="Faction — first letter (A / C / L). Confirmed from bar-rts where available, else the lobby default.">
+            Fac
+          </span>
+          <span title="Start-position role for that game: air / front / tech / sea (from BAR map metadata), or — when unknown.">
+            Pos
+          </span>
           <span>Result</span>
           <span className="r">Length</span>
-          <span className="r">Metal</span>
-          <span className="r">Dmg</span>
-          <span className="r">Eff</span>
-          <span className="r">CMD/min</span>
+          <span className="r" title="Total metal your team produced that game.">
+            Metal
+          </span>
+          <span className="r" title="Total damage your team dealt that game.">
+            Dmg
+          </span>
+          <span className="r" title="Damage dealt ÷ damage taken. Green ≥ your own average across all games, red below.">
+            Eff
+          </span>
+          <span className="r" title="Engine commands per game-minute — a rough APM proxy.">
+            CMD/min
+          </span>
         </div>
         {rows.map((a, i) => (
           <div
