@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { shell } from 'electron'
 import type { PlayLaunchResult } from '../shared/types'
+import { readDemoFile } from './demo-header'
 import { candidateReplayFolders } from './paths'
 import { store } from './store'
 
@@ -56,8 +57,64 @@ function findLauncher(installDir: string): string | null {
 }
 
 /**
- * Launch a replay. Prefers spawning the detected BAR client directly; falls back
- * to the OS file association (what double-clicking the `.sdfz` would do).
+ * Pick the `spring.exe` engine build to run a demo with. BAR keeps every engine
+ * it has downloaded under `<install>/data/engine/<name>/`, where `<name>` is
+ * either `recoil_<version>` (e.g. `recoil_2026.07.04`) or the raw version string
+ * for old 105 builds (`105.1.1-1767-gaaf2cc3 bar`).
+ *
+ * We match the demo's engine version to a build; if that exact build isn't
+ * installed we fall back to the most recently modified one, which will usually
+ * still replay a recent demo. Returns null when no engine build exists at all.
+ */
+function resolveEngineExe(installDir: string, demoEngineVersion: string): string | null {
+  const engineRoot = join(installDir, 'data', 'engine')
+  let names: string[]
+  try {
+    names = readdirSync(engineRoot).filter((n) => existsSync(join(engineRoot, n, 'spring.exe')))
+  } catch {
+    return null
+  }
+  if (names.length === 0) return null
+
+  const wanted = demoEngineVersion.trim().toLowerCase()
+  const norm = (n: string): string => n.replace(/^recoil[_-]/i, '').trim().toLowerCase()
+
+  const exact =
+    wanted &&
+    names.find((n) => {
+      const a = norm(n)
+      return a === wanted || wanted.includes(a) || a.includes(wanted)
+    })
+  if (exact) return join(engineRoot, exact, 'spring.exe')
+
+  // No matching build — use the newest one we have.
+  const newest = names
+    .map((n) => ({ n, mtime: safeMtime(join(engineRoot, n)) }))
+    .sort((a, b) => b.mtime - a.mtime)[0]!.n
+  return join(engineRoot, newest, 'spring.exe')
+}
+
+function safeMtime(p: string): number {
+  try {
+    return statSync(p).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+function readEngineVersion(filePath: string): string {
+  try {
+    return readDemoFile(filePath).engineVersion.trim()
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Launch a replay. Prefers spawning the BAR engine (`spring.exe`) directly on the
+ * demo file so it drops straight into the in-game replay; falls back to the BAR
+ * launcher (which makes you start the replay from its menu), then to the OS file
+ * association for `.sdfz`.
  */
 export async function playReplay(filePath: string): Promise<PlayLaunchResult> {
   if (!existsSync(filePath)) {
@@ -67,13 +124,36 @@ export async function playReplay(filePath: string): Promise<PlayLaunchResult> {
   const installDir = detectBarInstallDir()
   const launcher = installDir ? findLauncher(installDir) : null
 
-  if (launcher) {
-    const spawned = await spawnLauncher(launcher, installDir!, filePath)
-    if (spawned.ok) return spawned
-    console.error('[launch] direct spawn failed:', spawned.error)
+  // 1. Straight into the game via the engine.
+  if (installDir) {
+    const engineExe = resolveEngineExe(installDir, readEngineVersion(filePath))
+    if (engineExe) {
+      const dataDir = join(installDir, 'data')
+      const args = ['--write-dir', dataDir, filePath]
+      const spawned = await spawnDetached(engineExe, dirname(engineExe), args, {
+        // The engine bails out quickly when the replay needs a map or game
+        // version that isn't downloaded yet (the launcher would have fetched
+        // it). If that happens, fall the user back to the launcher.
+        onEarlyExit: launcher
+          ? (code) => {
+              console.error(`[launch] engine exited early (code ${code}); opening launcher`)
+              void spawnDetached(launcher, installDir, [filePath])
+            }
+          : undefined
+      })
+      if (spawned.ok) return spawned
+      console.error('[launch] engine spawn failed:', spawned.error)
+    }
   }
 
-  // Fallback: hand the file to Windows' default handler for `.sdfz`.
+  // 2. The BAR launcher — opens its menu with the replay queued up.
+  if (launcher) {
+    const spawned = await spawnDetached(launcher, installDir!, [filePath])
+    if (spawned.ok) return spawned
+    console.error('[launch] launcher spawn failed:', spawned.error)
+  }
+
+  // 3. Hand the file to Windows' default handler for `.sdfz`.
   let openErr = ''
   try {
     openErr = await shell.openPath(filePath)
@@ -93,11 +173,21 @@ export async function playReplay(filePath: string): Promise<PlayLaunchResult> {
   }
 }
 
-/** Spawn the launcher, waiting briefly to catch an immediate spawn error (ENOENT etc.). */
-function spawnLauncher(
-  launcher: string,
+interface SpawnOpts {
+  /**
+   * Called once if the process exits with a non-zero code (or a signal) within
+   * ~30s of starting — i.e. it launched but then fell over. Not called for a
+   * clean exit (the user just quitting) or an immediate spawn error.
+   */
+  onEarlyExit?: (code: number | null) => void
+}
+
+/** Spawn a process detached, waiting briefly to catch an immediate error (ENOENT etc.). */
+function spawnDetached(
+  exe: string,
   cwd: string,
-  filePath: string
+  args: string[],
+  opts: SpawnOpts = {}
 ): Promise<PlayLaunchResult> {
   return new Promise((resolve) => {
     let settled = false
@@ -107,8 +197,18 @@ function spawnLauncher(
       resolve(r)
     }
     try {
-      const child = spawn(launcher, [filePath], { cwd, detached: true, stdio: 'ignore' })
+      const startedAt = Date.now()
+      const child = spawn(exe, args, { cwd, detached: true, stdio: 'ignore' })
       child.once('error', (err) => done({ ok: false, error: err.message }))
+      if (opts.onEarlyExit) {
+        let fired = false
+        child.once('exit', (code, signal) => {
+          if (fired || Date.now() - startedAt > 30_000) return
+          if (code === 0 && !signal) return // clean quit — nothing to recover
+          fired = true
+          opts.onEarlyExit!(code)
+        })
+      }
       child.unref()
       // No error within a short window → treat as launched.
       setTimeout(() => done({ ok: true }), 600)

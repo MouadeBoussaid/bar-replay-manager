@@ -371,7 +371,7 @@ export interface Api {
   listReplays(folder: string): Promise<ReplayListItem[]>
   /** Full metadata for one replay; null when the file no longer exists. */
   getReplayDetail(filePath: string): Promise<ReplayMeta | null>
-  /** Launch the local BAR client with this replay file. */
+  /** Play this replay: spawns the BAR engine straight into the in-game replay. */
   playReplay(filePath: string): Promise<PlayLaunchResult>
   /** Move a single replay file to the Recycle Bin. */
   trashReplay(filePath: string): Promise<void>
