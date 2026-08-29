@@ -416,22 +416,41 @@ function FormOverTime({
 function BreakdownRow({ report }: { report: PlayerReport }): JSX.Element {
   return (
     <div className="an-breakdown">
-      <BarCard title="Faction" bars={report.factions} thin={report.thinSample} accent />
+      <BarCard
+        title="Faction"
+        bars={report.factions}
+        thin={report.thinSample}
+        accent
+        footNote={factionNote(report)}
+      />
       <DurationCard report={report} />
     </div>
   )
+}
+
+function factionNote(report: PlayerReport): string | undefined {
+  const { factionConfirmed: n, totalGames: total } = report
+  if (n === 0) {
+    return 'In-game faction isn’t in local replay files — turn on Online lookup and open replays to confirm it.'
+  }
+  if (n < total) {
+    return `From ${n.toLocaleString()} of ${total.toLocaleString()} games with a confirmed in-game faction.`
+  }
+  return undefined
 }
 
 function BarCard({
   title,
   bars,
   thin,
-  accent
+  accent,
+  footNote
 }: {
   title: string
   bars: ReportBar[]
   thin: boolean
   accent?: boolean
+  footNote?: string
 }): JSX.Element {
   return (
     <div className="an-card">
@@ -462,6 +481,7 @@ function BarCard({
           </div>
         ))}
       </div>
+      {footNote && <div className="an-foot-note">{footNote}</div>}
     </div>
   )
 }

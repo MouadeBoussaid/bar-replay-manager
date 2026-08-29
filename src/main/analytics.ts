@@ -27,6 +27,8 @@ interface Appearance {
   fmt: string
   side: 'blue' | 'red' | null
   faction: string
+  /** True when `faction` is the confirmed in-game pick (from bar-rts), not the lobby default. */
+  factionConfirmed: boolean
   result: GameResult
   os: number | null
   rgb: string | null
@@ -77,7 +79,7 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
   if (meta.parseError || meta.allyTeams.length === 0 || isAiReplay(meta)) return []
   const colors = teamColorNames(meta)
   const fmt = meta.allyTeams.map((t) => t.players.length).join('v')
-  const serverPos = serverStartPositions(meta.gameId)
+  const serverData = serverPlayerData(meta.gameId)
   const scriptName = meta.map?.name ?? 'Unknown'
   const mapName = stripMapVersion(scriptName)
   const teamCount = meta.allyTeams.length
@@ -93,7 +95,8 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
     for (const p of team.players) {
       if (p.isAi) continue
       const s = p.stats
-      const pos = serverPos.get(p.name.toLowerCase())
+      const sd = serverData.get(p.name.toLowerCase())
+      const pos = sd?.pos
       const role =
         pos != null
           ? (roleForPosition(mapName, ppt, teamCount, pos.ex, pos.ez) ?? undefined)
@@ -108,7 +111,10 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
         durationMs: meta.durationMs || 0,
         fmt,
         side: colors[ti] ?? null,
-        faction: normFaction(p.faction),
+        // The local script's `side` is the pre-game pick (~always "Armada"); the
+        // in-game faction only exists in the cached bar-rts record.
+        faction: normFaction(sd?.faction ?? p.faction),
+        factionConfirmed: !!sd?.faction,
         result: team.won === true ? 'win' : team.won === false ? 'loss' : 'undecided',
         os: typeof p.skillOS === 'number' ? p.skillOS : null,
         rgb: p.rgbColor ?? null,
@@ -145,17 +151,22 @@ function stripMapVersion(name: string): string {
   return (m ? m[1]! : name).trim()
 }
 
+interface ServerPlayer {
+  /** Normalised (0..1) + raw (elmos) start position, when the record has one. */
+  pos?: { nx: number; ny: number; ex: number; ez: number }
+  /** The real in-game faction — the local script only has the lobby default. */
+  faction?: string
+}
+
 /**
- * Per-player start positions for one game, normalised to 0..1 map coords, read
- * from the cached bar-rts.com record (populated when the user opens the replay
- * with online enrichment on). Empty when nothing is cached for this game. The
- * local demo has only the shared ally-team box, so this is the only source of
- * spot-level positions.
+ * Per-player data for one game from the cached bar-rts.com record (populated when
+ * the user opens the replay with online enrichment on). Empty when nothing is
+ * cached. This is the only trustworthy source for the in-game faction (the local
+ * script's `side` is the pre-game pick, ~always "Armada") and for spot-level
+ * start positions (the local demo has only the shared ally-team box).
  */
-function serverStartPositions(
-  gameId: string | null
-): Map<string, { nx: number; ny: number; ex: number; ez: number }> {
-  const out = new Map<string, { nx: number; ny: number; ex: number; ez: number }>()
+function serverPlayerData(gameId: string | null): Map<string, ServerPlayer> {
+  const out = new Map<string, ServerPlayer>()
   if (!gameId) return out
   const data = store.getApiCache(gameId)?.data as
     | { Map?: { width?: unknown; height?: unknown }; AllyTeams?: unknown }
@@ -164,25 +175,39 @@ function serverStartPositions(
   if (!data || typeof data !== 'object') return out
   const w = Number(data.Map?.width)
   const h = Number(data.Map?.height)
-  if (!(w > 0) || !(h > 0)) return out
+  const dims = w > 0 && h > 0
   const allyTeams = Array.isArray(data.AllyTeams) ? data.AllyTeams : []
   for (const at of allyTeams) {
     const players = Array.isArray((at as { Players?: unknown })?.Players)
       ? (at as { Players: unknown[] }).Players
       : []
     for (const p of players) {
-      const rec = p as { name?: unknown; startPos?: unknown; startpos?: unknown }
-      const raw = (rec.startPos ?? rec.startpos) as { x?: unknown; z?: unknown; y?: unknown } | undefined
-      if (!raw || typeof rec.name !== 'string') continue
-      const px = Number(raw.x)
-      const pz = Number(raw.z ?? raw.y)
-      if (!Number.isFinite(px) || !Number.isFinite(pz) || (px === 0 && pz === 0)) continue
-      out.set(rec.name.toLowerCase(), {
-        nx: clamp01(px / (w * 512)),
-        ny: clamp01(pz / (h * 512)),
-        ex: px,
-        ez: pz
-      })
+      const rec = p as {
+        name?: unknown
+        faction?: unknown
+        startPos?: unknown
+        startpos?: unknown
+      }
+      if (typeof rec.name !== 'string') continue
+      const entry: ServerPlayer = {}
+      if (typeof rec.faction === 'string' && rec.faction) entry.faction = rec.faction
+
+      const raw = (rec.startPos ?? rec.startpos) as
+        | { x?: unknown; z?: unknown; y?: unknown }
+        | undefined
+      if (dims && raw) {
+        const px = Number(raw.x)
+        const pz = Number(raw.z ?? raw.y)
+        if (Number.isFinite(px) && Number.isFinite(pz) && !(px === 0 && pz === 0)) {
+          entry.pos = {
+            nx: clamp01(px / (w * 512)),
+            ny: clamp01(pz / (h * 512)),
+            ex: px,
+            ez: pz
+          }
+        }
+      }
+      if (entry.faction || entry.pos) out.set(rec.name.toLowerCase(), entry)
     }
   }
   return out
@@ -241,6 +266,7 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     averages: [],
     form: { metrics: FORM_METRICS, games: [] },
     factions: [],
+    factionConfirmed: 0,
     sizes: [],
     durations: [],
     startMaps: [],
@@ -265,7 +291,11 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
 
   empty.averages = buildAverages(scoped)
   empty.form = { metrics: FORM_METRICS, games: scoped.slice(-50).map(formGame) }
-  empty.factions = groupBars(scoped, (a) => a.faction, {
+  // The local `side` is the lobby default (~always Armada), so build the faction
+  // mix from games with a confirmed bar-rts faction when we have any.
+  const confirmed = scoped.filter((a) => a.factionConfirmed)
+  empty.factionConfirmed = confirmed.length
+  empty.factions = groupBars(confirmed.length > 0 ? confirmed : scoped, (a) => a.faction, {
     order: ['Armada', 'Cortex', 'Legion', 'Random'],
     meta: (label) => FACTION_META[label] ?? { letter: label[0] ?? '?', color: '#9aa0ac' }
   })

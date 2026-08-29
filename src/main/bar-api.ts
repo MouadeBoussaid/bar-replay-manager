@@ -84,6 +84,9 @@ export function mergeServerData(local: ReplayMeta, s: ServerReplay): ReplayMeta 
           if (!sp) return pl
           return {
             ...pl,
+            // The local script's `side` is the pre-game lobby pick and defaults
+            // to "Armada"; the real in-game faction is only on the server.
+            faction: (str(sp.faction) || undefined) ?? pl.faction,
             countryCode: pl.countryCode ?? (str(sp.countryCode) || undefined),
             rank: pl.rank ?? numOrUndef(sp.rank),
             skillOS: pl.skillOS ?? parseServerSkill(sp.skill),

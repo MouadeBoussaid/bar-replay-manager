@@ -265,6 +265,12 @@ export interface PlayerReport {
     games: ReportFormGame[]
   }
   factions: ReportBar[]
+  /**
+   * Scoped games whose faction is the confirmed in-game pick (from bar-rts), not
+   * the lobby default. When 0 < this < totalGames the Faction card is built from
+   * the confirmed subset; when 0 it falls back to the (unreliable) local `side`.
+   */
+  factionConfirmed: number
   sizes: ReportBar[]
   durations: ReportDurationBucket[]
   /** Per-map start-position heatmaps, most-played map first. */

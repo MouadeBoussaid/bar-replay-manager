@@ -39,9 +39,17 @@ winner can be recovered.
 
 ### The start script (`[GAME]{…}` TDF)
 
-Faction (`side`), OpenSkill rating (`skill`), player colour (`rgbcolor`), start
-position (`startpos` / ally-team `startrect*`), team/ally-team structure, and the
-`spectator` flag all come from parsing the embedded start script.
+OpenSkill rating (`skill`), player colour (`rgbcolor`), start position (`startpos`
+/ ally-team `startrect*`), team/ally-team structure, and the `spectator` flag all
+come from parsing the embedded start script.
+
+**Faction is *not* reliable from the script.** `[TEAM_n].side` is only the
+pre-game lobby pick — it defaults to `Armada` and most players change their
+faction on the in-game picker after the script is written, so the real choice
+lives in the demo stream (which we don't parse). The confirmed in-game faction is
+read from the **cached bar-rts.com record** (`AllyTeams[].Players[].faction`) when
+one is present — otherwise the appearance keeps the local `side` and is flagged
+`factionConfirmed = false`.
 
 ### Per-appearance row
 
@@ -51,7 +59,8 @@ flattens every indexed replay into a flat list of appearances (`INDEX`), and a
 report is `INDEX.filter(a => a.nameKey === name.toLowerCase())`.
 
 Fields captured per appearance: name, file path, start time, map (version suffix
-stripped), duration, format (`8v8` etc.), side (blue/red), faction, result,
+stripped), duration, format (`8v8` etc.), side (blue/red), faction (+
+`factionConfirmed`), result,
 OS, colour, normalised start position (`startNX/NY`, when a bar-rts record is
 cached — see §5b), start-position `role` (see §5b · Roles), and the raw stat
 fields
@@ -188,7 +197,16 @@ Armada → Cortex → Legion → Random.
 
 * Faction string normalised (`normFaction`): `arm*` → Armada, `cor*` → Cortex,
   `leg*` → Legion, empty/`random` → Random, anything else title-cased as-is.
-* **`N g`** — games on that faction.
+* **Built from confirmed games only.** If any scoped game has a bar-rts-confirmed
+  faction (`factionConfirmed`), the bars use just that subset — otherwise every
+  game shows as its lobby default (see §1) and the mix is meaningless. Footnotes:
+  * 0 confirmed → *"In-game faction isn't in local replay files — turn on Online
+    lookup…"* (bars still drawn from local `side`, usually all-Armada)
+  * some confirmed → *"From N of M games with a confirmed in-game faction."*
+  * all confirmed → no footnote
+  Confirmed coverage grows as you open replays with Online lookup on; press
+  <kbd>F5</kbd> to rebuild the index.
+* **`N g`** — games on that faction (within whichever set was used).
 * **win rate** — `wins / (wins + losses)` among those games; `—` if none decided.
   Coloured green ≥ 54%, red ≤ 46%, neutral between (and always neutral when thin).
 * **bar width** — `games / (max games on any one faction)`, so the most-played
@@ -343,6 +361,8 @@ averageX          = mean(scoped appearances' X)
 baselineX         = mean(ALL indexed appearances' X)   # ignores scope
 delta (normal)    = (averageX - baselineX) / baselineX * 100      # "%"
 delta (efficiency)= averageX - baselineX                          # "pt"
+faction           = bar-rts Players[].faction when cached, else local [TEAM].side
+factionConfirmed  = faction came from bar-rts (not the lobby default)
 startNX / startNY = bar-rts startPos.{x,z} / (Map.{width,height} * 512), clamped 0..1
 startSpot         = proximity cluster of a player's startNX/NY on one map (< 0.055)
 spot share        = spotGames / map.games          # within that one map only
