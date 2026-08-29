@@ -162,6 +162,35 @@ export type GameResult = 'win' | 'loss' | 'undecided'
 /** `all`, `last50`, or a BAR season key like `s3` (see `shared/seasons.ts`). */
 export type AnalyticsScope = 'all' | 'last50' | `s${number}`
 
+export interface FingerprintAxis {
+  key: 'metal' | 'energy' | 'dmgDealt' | 'dmgTaken' | 'units' | 'dmgPerMetal'
+  label: string
+  /** Plotted value: 0–100 percentile against all indexed games. */
+  percentile: number
+  /** The player's mean raw value (already formatted for display). */
+  rawLabel: string
+  /** Percentile of the population's own mean — the dashed reference polygon. */
+  baselinePercentile: number
+}
+
+export interface PlayerFingerprint {
+  /** One of a fixed set of archetype names, or "All-Rounder". */
+  archetype: string
+  /** One-line, template-generated description. */
+  blurb: string
+  /** Clockwise from top: metal, energy, dmgDealt, dmgTaken, units, dmgPerMetal. */
+  axes: FingerprintAxis[]
+}
+
+export interface ReportInsight {
+  /** Short uppercase kicker, e.g. "LATE GAME". */
+  tag: string
+  /** good = strength (green), watch = concern (red), neutral = observation (yellow). */
+  tone: 'good' | 'watch' | 'neutral'
+  /** One or two template-filled sentences. */
+  text: string
+}
+
 export interface ReportAverage {
   key: string
   label: string
@@ -266,6 +295,12 @@ export interface PlayerReport {
   /** < 20 games — hide win-rate colouring and derived blocks. */
   thinSample: boolean
   averages: ReportAverage[]
+  /** Playstyle radar — 6 percentile axes + a derived archetype. Null under the
+   *  thin-sample cutoff or when the stat fields needed aren't available. */
+  fingerprint: PlayerFingerprint | null
+  /** Rule-generated callouts shown beside the fingerprint. Up to 3, strongest
+   *  effect first; empty under the thin-sample cutoff. */
+  insights: ReportInsight[]
   form: {
     metrics: { key: string; label: string }[]
     games: ReportFormGame[]

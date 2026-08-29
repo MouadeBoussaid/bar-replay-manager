@@ -8,7 +8,10 @@ import type {
   ReportBar,
   ReportCompanyRow,
   ReportStartMap,
-  ReportStartSpot
+  ReportStartSpot,
+  FingerprintAxis,
+  PlayerFingerprint,
+  ReportInsight
 } from '../shared/types'
 import { teamColorNames } from '../shared/team-colors'
 import { seasonBounds } from '../shared/seasons'
@@ -248,8 +251,8 @@ const FACTION_META: Record<string, { letter: string; color: string }> = {
 }
 
 const FORM_METRICS = [
-  { key: 'metalPerMin', label: 'Metal / min' },
-  { key: 'energyPerMin', label: 'Energy / min' },
+  { key: 'metalPerSec', label: 'Metal / s' },
+  { key: 'energyPerSec', label: 'Energy / s' },
   { key: 'damageDealt', label: 'Damage dealt' },
   { key: 'damageTaken', label: 'Damage taken' },
   { key: 'efficiency', label: 'Efficiency' },
@@ -285,6 +288,8 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     os: null,
     thinSample: scoped.length < 20,
     averages: [],
+    fingerprint: null,
+    insights: [],
     form: { metrics: FORM_METRICS, games: [] },
     factions: [],
     factionConfirmed: 0,
@@ -311,6 +316,7 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
   empty.os = [...scoped].reverse().find((a) => a.os != null)?.os ?? null
 
   empty.averages = buildAverages(scoped)
+  empty.fingerprint = empty.thinSample ? null : buildFingerprint(scoped)
   empty.form = { metrics: FORM_METRICS, games: scoped.slice(-50).map(formGame) }
   // The local `side` is the lobby default (~always Armada), so build the faction
   // mix from games with a confirmed bar-rts faction when we have any.
@@ -344,6 +350,8 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
     withP: companyRows(scoped, 'allies'),
     vsP: companyRows(scoped, 'enemies')
   }
+
+  empty.insights = empty.thinSample ? [] : buildInsights(scoped, empty)
 
   empty.appearances = [...scoped].reverse().map(appearanceRow)
   return empty
@@ -439,18 +447,387 @@ function sign(n: number): string {
   return n > 0 ? '+' : n < 0 ? '−' : ''
 }
 
+// ---- playstyle fingerprint ---------------------------------------------------
+
+interface FpMetric {
+  key: FingerprintAxis['key']
+  label: string
+  /** per-game value, null when inputs missing. Economy axes are per game-second
+   *  (matching BAR's in-game m/s · e/s); the rest are per game-minute. */
+  val: (a: Appearance) => number | null
+  fmt: (v: number) => string
+}
+
+const minutesOf = (a: Appearance): number => (a.durationMs > 0 ? a.durationMs / 60_000 : 1)
+const secondsOf = (a: Appearance): number => (a.durationMs > 0 ? a.durationMs / 1000 : 1)
+
+/** Clockwise from top — the order the radar plots them. Each axis is the raw
+ *  metric itself (higher = further out), no inversion. */
+const FP_METRICS: FpMetric[] = [
+  {
+    key: 'metal',
+    label: 'M/s',
+    val: (a) => (a.metalProduced != null ? a.metalProduced / secondsOf(a) : null),
+    fmt: (v) => `${Math.round(v)} metal/s`
+  },
+  {
+    key: 'energy',
+    label: 'E/s',
+    val: (a) => (a.energyProduced != null ? a.energyProduced / secondsOf(a) : null),
+    fmt: (v) => `${fmtK(v)} energy/s`
+  },
+  {
+    key: 'dmgDealt',
+    label: 'Dmg dealt',
+    val: (a) => (a.damageDealt != null ? a.damageDealt / minutesOf(a) : null),
+    fmt: (v) => `${fmtK(v)} dmg/min`
+  },
+  {
+    key: 'dmgTaken',
+    label: 'Dmg taken',
+    val: (a) => (a.damageReceived != null ? a.damageReceived / minutesOf(a) : null),
+    fmt: (v) => `${fmtK(v)} dmg/min`
+  },
+  {
+    key: 'units',
+    label: 'Units/min',
+    val: (a) => (a.unitsProduced != null ? a.unitsProduced / minutesOf(a) : null),
+    fmt: (v) => `${v.toFixed(1)} units/min`
+  },
+  {
+    key: 'dmgPerMetal',
+    label: 'Dmg/metal',
+    val: (a) =>
+      a.damageDealt != null && a.metalProduced ? a.damageDealt / a.metalProduced : null,
+    fmt: (v) => `${v.toFixed(2)} dmg/metal`
+  }
+]
+
+/** Percentile (0–100) of `v` within a pre-sorted ascending array. */
+function percentileOf(sortedAsc: number[], v: number): number {
+  if (sortedAsc.length === 0) return 50
+  let lo = 0
+  let hi = sortedAsc.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (sortedAsc[mid]! <= v) lo = mid + 1
+    else hi = mid
+  }
+  return (lo / sortedAsc.length) * 100
+}
+
+function buildFingerprint(scoped: Appearance[]): PlayerFingerprint | null {
+  if (scoped.filter((a) => a.damageDealt != null).length < 10) return null
+
+  const axes: FingerprintAxis[] = FP_METRICS.map((m) => {
+    const mine: number[] = []
+    for (const a of scoped) {
+      const v = m.val(a)
+      if (v != null && Number.isFinite(v)) mine.push(v)
+    }
+    const pop: number[] = []
+    for (const a of INDEX) {
+      const v = m.val(a)
+      if (v != null && Number.isFinite(v)) pop.push(v)
+    }
+    pop.sort((x, y) => x - y)
+
+    if (mine.length < 3 || pop.length < 20) {
+      return {
+        key: m.key,
+        label: m.label,
+        percentile: 50,
+        rawLabel: mine.length ? m.fmt(mean(mine)) : '—',
+        baselinePercentile: 50
+      }
+    }
+    const raw = mean(mine)
+    return {
+      key: m.key,
+      label: m.label,
+      percentile: Math.round(percentileOf(pop, raw)),
+      rawLabel: m.fmt(raw),
+      baselinePercentile: Math.round(percentileOf(pop, mean(pop)))
+    }
+  })
+
+  const p = Object.fromEntries(axes.map((a) => [a.key, a.percentile])) as Record<
+    FingerprintAxis['key'],
+    number
+  >
+  return { ...archetypeFor(p), axes }
+}
+
+const FP_RULES: {
+  archetype: string
+  blurb: string
+  when: (p: Record<FingerprintAxis['key'], number>) => boolean
+}[] = [
+  {
+    archetype: 'Macro Titan',
+    blurb: 'Metal, energy and army all outscale the lobby — sheer output',
+    when: (p) => p.metal >= 68 && p.energy >= 64 && p.units >= 62
+  },
+  {
+    archetype: 'Economic Anchor',
+    blurb: 'High income, low aggression, scales into the late game',
+    when: (p) => p.metal >= 62 && p.energy >= 58 && p.dmgDealt <= 52
+  },
+  {
+    archetype: 'Energy Merchant',
+    blurb: 'Energy well ahead of metal — air and tech leaning',
+    when: (p) => p.energy >= 68 && p.energy - p.metal >= 16
+  },
+  {
+    archetype: 'Metal Grinder',
+    blurb: 'Metal-heavy — mass and bots over tech',
+    when: (p) => p.metal >= 68 && p.metal - p.energy >= 16
+  },
+  {
+    archetype: 'Precision Striker',
+    blurb: 'Wrings a lot of damage out of every unit of metal',
+    when: (p) => p.dmgDealt >= 58 && p.dmgPerMetal >= 64
+  },
+  {
+    archetype: 'Brawler',
+    blurb: 'Trades constantly — deals and eats heavy damage',
+    when: (p) => p.dmgDealt >= 64 && p.dmgTaken >= 62
+  },
+  {
+    archetype: 'Glass Cannon',
+    blurb: 'Heavy damage out, takes little back',
+    when: (p) => p.dmgDealt >= 62 && p.dmgTaken <= 38
+  },
+  {
+    archetype: 'Meat Shield',
+    blurb: 'Soaks damage without dealing much in return',
+    when: (p) => p.dmgTaken >= 66 && p.dmgDealt <= 52
+  },
+  {
+    archetype: 'Swarm Commander',
+    blurb: 'A constant stream of cheap units',
+    when: (p) => p.units >= 66 && p.dmgPerMetal >= 55
+  },
+  {
+    archetype: 'Turtler',
+    blurb: 'Economy up, quiet on both sides of the fight',
+    when: (p) => p.metal >= 55 && p.dmgDealt <= 40 && p.dmgTaken <= 44
+  }
+]
+
+function archetypeFor(p: Record<FingerprintAxis['key'], number>): {
+  archetype: string
+  blurb: string
+} {
+  const hit = FP_RULES.find((r) => r.when(p))
+  if (hit) return { archetype: hit.archetype, blurb: hit.blurb }
+  const vals = Object.values(p)
+  return Math.max(...vals) - Math.min(...vals) <= 18
+    ? { archetype: 'All-Rounder', blurb: 'No axis runs away from the rest' }
+    : { archetype: 'Generalist', blurb: 'A bit of everything, nothing at the extremes' }
+}
+
+// ---- insight callouts -----------------------------------------------------
+
+type InsightCandidate = ReportInsight & { effect: number }
+
+const pctStr = (v: number): string => `${Math.round(v * 100)}%`
+
+/**
+ * Rule-generated callouts shown beside the fingerprint. Each rule fires only
+ * when its threshold is crossed; the strongest three by `effect` are kept.
+ */
+function buildInsights(scoped: Appearance[], r: PlayerReport): ReportInsight[] {
+  const out: InsightCandidate[] = []
+  const overall = r.winRate
+
+  // 1. Match-length skew — shortest vs longest duration bucket with a sample.
+  {
+    const buckets = r.durations.filter((d) => d.games >= 5 && d.winRate != null)
+    const short = buckets[0]
+    const long = buckets[buckets.length - 1]
+    if (short && long && short !== long) {
+      const gap = (long.winRate! - short.winRate!) * 100
+      if (Math.abs(gap) >= 8) {
+        const up = gap > 0
+        out.push({
+          tag: up ? 'LATE GAME' : 'EARLY GAME',
+          tone: 'good',
+          text: up
+            ? `Win rate climbs with match length — ${pctStr(long.winRate!)} in ${long.label} games against ${pctStr(short.winRate!)} in ${short.label}.`
+            : `Strongest in shorter games — ${pctStr(short.winRate!)} in ${short.label} against ${pctStr(long.winRate!)} in ${long.label}.`,
+          effect: Math.abs(gap)
+        })
+      }
+    }
+  }
+
+  // 2. Metal excess vs. the lobby — floating resources.
+  {
+    const mine = scoped.map((a) => a.metalExcess).filter((v): v is number => v != null)
+    const pop = INDEX.map((a) => a.metalExcess).filter((v): v is number => v != null)
+    if (mine.length >= 10 && pop.length >= 50) {
+      const avg = mean(mine)
+      const base = mean(pop)
+      if (base > 0 && avg >= base * 1.6 && avg >= 400) {
+        out.push({
+          tag: 'WATCH',
+          tone: 'watch',
+          text: `Metal excess averages ${fmtK(avg)} per game, ${(avg / base).toFixed(1)}× the lobby average. Income outruns spending.`,
+          effect: (avg / base) * 6
+        })
+      }
+    }
+  }
+
+  // 3. Best ally — a pairing that beats the solo win rate.
+  if (overall != null) {
+    const ally = [...r.company.withP]
+      .filter((c) => c.games >= 20 && c.winRate != null)
+      .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0))[0]
+    if (ally?.winRate != null) {
+      const lift = (ally.winRate - overall) * 100
+      if (lift >= 5) {
+        out.push({
+          tag: 'PAIRING',
+          tone: 'neutral',
+          text: `Best allied with ${ally.name}: ${pctStr(ally.winRate)} across ${ally.games} games, ${Math.round(lift)} points above your ${pctStr(overall)} baseline.`,
+          effect: lift + 4
+        })
+      }
+    }
+  }
+
+  // 4. Recent form — last 15 scoped games vs. everything before.
+  if (scoped.length >= 35) {
+    const lw = winRateOf(scoped.slice(-15))
+    const pw = winRateOf(scoped.slice(0, -15))
+    if (lw != null && pw != null) {
+      const d = (lw - pw) * 100
+      if (Math.abs(d) >= 10) {
+        out.push({
+          tag: 'FORM',
+          tone: d > 0 ? 'good' : 'watch',
+          text:
+            d > 0
+              ? `Trending up — ${pctStr(lw)} over the last 15 games vs ${pctStr(pw)} before.`
+              : `Cooling off — ${pctStr(lw)} over the last 15 games vs ${pctStr(pw)} before.`,
+          effect: Math.abs(d) * 0.9
+        })
+      }
+    }
+  }
+
+  // 5. Faction gap — best vs. worst faction win rate.
+  {
+    const f = r.factions.filter((b) => b.games >= 15 && b.winRate != null)
+    if (f.length >= 2) {
+      const best = f.reduce((a, b) => ((b.winRate ?? 0) > (a.winRate ?? 0) ? b : a))
+      const worst = f.reduce((a, b) => ((b.winRate ?? 1) < (a.winRate ?? 1) ? b : a))
+      const gap = ((best.winRate ?? 0) - (worst.winRate ?? 0)) * 100
+      if (best !== worst && gap >= 12) {
+        out.push({
+          tag: 'FACTION',
+          tone: 'neutral',
+          text: `${best.label} ${pctStr(best.winRate!)} vs ${worst.label} ${pctStr(worst.winRate!)} — a ${Math.round(gap)}-point gap over ${best.games + worst.games} games.`,
+          effect: gap * 0.8
+        })
+      }
+    }
+  }
+
+  // ---- averages-vs-baseline rules (same deltas the Averages grid shows) ----
+  const pctD = (v: number): string => `${sign(v)}${Math.round(Math.abs(v))}%`
+  const eco = (pick: (a: Appearance) => number | undefined): number | null => {
+    const mineV = scoped.map(pick).filter((v): v is number => v != null)
+    const popV = INDEX.map(pick).filter((v): v is number => v != null)
+    if (mineV.length < 10 || popV.length < 50) return null
+    const b = mean(popV)
+    return b > 0 ? ((mean(mineV) - b) / b) * 100 : null
+  }
+  const dM = eco((a) => a.metalProduced)
+  const dE = eco((a) => a.energyProduced)
+  const dDmg = eco((a) => a.damageDealt)
+  const dTaken = eco((a) => a.damageReceived)
+
+  // Trade efficiency in points (damage dealt ÷ taken) vs. the pool.
+  let tradePt: number | null = null
+  {
+    const perGame = (a: Appearance): number | undefined =>
+      a.damageDealt != null && a.damageReceived
+        ? (a.damageDealt / a.damageReceived) * 100
+        : undefined
+    const mineV = scoped.map(perGame).filter((v): v is number => v != null)
+    const popV = INDEX.map(perGame).filter((v): v is number => v != null)
+    if (mineV.length >= 10 && popV.length >= 50) {
+      const m = mean(mineV)
+      const base = mean(popV)
+      const pt = m - base
+      tradePt = pt
+      if (Math.abs(pt) >= 12) {
+        out.push({
+          tag: 'DAMAGE TRADES',
+          tone: pt > 0 ? 'good' : 'watch',
+          text:
+            pt > 0
+              ? `Damage trades land well — deals ${Math.round(m)} damage for every 100 taken, against ${Math.round(base)} for the average player.`
+              : `Damage trades could be more efficient — deals only ${Math.round(m)} damage for every 100 taken, against ${Math.round(base)} for the average player.`,
+          effect: Math.abs(pt) * 1.1
+        })
+      }
+    }
+  }
+
+  // 6. Economy size vs. the lobby — both resources up, or an energy tilt.
+  if (dM != null && dE != null) {
+    if (dE - dM >= 14 && dE >= 12) {
+      out.push({
+        tag: 'ENERGY TILT',
+        tone: 'neutral',
+        text: `Energy runs well ahead of metal — ${pctD(dE)} vs ${pctD(dM)} against the baseline. An air / tech lean.`,
+        effect: (dE - dM) * 0.9
+      })
+    } else if (dM >= 10 && dE >= 10) {
+      out.push({
+        tag: 'BIG ECONOMY',
+        tone: 'good',
+        text: `Runs a bigger economy than the lobby — metal ${pctD(dM)}, energy ${pctD(dE)} over baseline.`,
+        effect: ((dM + dE) / 2) * 1.1
+      })
+    }
+  }
+
+  // 7. Damage soaked — takes noticeably more than the pool. Skipped when the
+  //    negative TRADES insight already tells this story.
+  if (dTaken != null && dTaken >= 18 && !(tradePt != null && tradePt <= -12)) {
+    out.push({
+      tag: 'DAMAGE SOAKED',
+      tone: 'watch',
+      text: `Takes ${pctD(dTaken)} more damage than the lobby${
+        dDmg != null && dDmg > 0 ? `, only ${pctD(dDmg)} more dealt` : ''
+      }. Trades happen on the back foot.`,
+      effect: dTaken * 0.7
+    })
+  }
+
+  return out
+    .sort((a, b) => b.effect - a.effect)
+    .slice(0, 3)
+    .map((c) => ({ tag: c.tag, tone: c.tone, text: c.text }))
+}
+
 // ---- form / bars / company / appearances --------------------------------
 
 function formGame(a: Appearance): PlayerReport['form']['games'][number] {
-  const min = a.durationMs / 60_000 || 1
+  const sec = a.durationMs / 1000 || 1
   return {
     date: a.startTime ?? '',
     map: a.mapName,
     result: a.result,
     filePath: a.filePath,
     values: {
-      metalPerMin: a.metalProduced != null ? a.metalProduced / min : null,
-      energyPerMin: a.energyProduced != null ? a.energyProduced / min : null,
+      metalPerSec: a.metalProduced != null ? a.metalProduced / sec : null,
+      energyPerSec: a.energyProduced != null ? a.energyProduced / sec : null,
       damageDealt: a.damageDealt ?? null,
       damageTaken: a.damageReceived ?? null,
       efficiency:

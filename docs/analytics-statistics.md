@@ -185,6 +185,65 @@ zero. Forced neutral when the sample is thin.
 
 ---
 
+## 3b. Playstyle fingerprint
+
+A six-axis radar ([`buildFingerprint`](../src/main/analytics.ts) → `PlayerFingerprint`).
+Hidden under the thin-sample cutoff (< 20 scoped games) and when fewer than 10
+scoped games carry a `damageDealt` stat.
+
+### Axes (clockwise from top)
+
+| Axis label | Per-game raw metric |
+|---|---|
+| M/s | `metalProduced / seconds` — the in-game m/s income |
+| E/s | `energyProduced / seconds` — the in-game e/s income |
+| Dmg dealt | `damageDealt / minutes` |
+| Dmg taken | `damageReceived / minutes` |
+| Units/min | `unitsProduced / minutes` |
+| Dmg/metal | `damageDealt / metalProduced` |
+
+Each axis plots the **percentile (0–100)** of the player's scoped *mean* for that
+metric within the distribution of that metric across **every game in `INDEX`**
+(all indexed big-team games, all players). Every axis is the raw metric itself —
+higher value plots further out, no inversion (a big *Dmg taken* spike means you
+take a lot of damage). An axis with < 3 player samples or < 20 population samples
+falls back to 50. The dashed reference polygon is the percentile of the
+population's *own* mean per axis (`baselinePercentile`) — "lobby average".
+
+### Archetype
+
+`archetypeFor` runs a fixed, ordered rule table ([`FP_RULES`](../src/main/analytics.ts))
+over the six percentiles; first match wins. ~10 named archetypes (Macro Titan,
+Economic Anchor, Energy Merchant, Metal Grinder, Precision Striker, Brawler,
+Glass Cannon, Meat Shield, Swarm Commander, Turtler) then a spread-based fallback
+(`All-Rounder` when the axes are within 18 points of each other, else
+`Generalist`). Never free text.
+
+### Insight callouts
+
+Rule-generated notes stacked under the archetype in the same card
+([`buildInsights`](../src/main/analytics.ts) → `PlayerReport.insights`). Empty
+under the thin-sample cutoff. Each rule emits a candidate only when its threshold
+is crossed; the **strongest three by `effect`** are kept. Tone drives the colour:
+`good` (green), `watch` (red), `neutral` (yellow).
+
+| Tag | Fires when |
+|---|---|
+| `LATE GAME` / `EARLY GAME` | win-rate gap between the shortest and longest duration bucket (each ≥ 5 games) is ≥ 8 pts |
+| `WATCH` (metal excess) | mean `metalExcess` ≥ 1.6× the `INDEX` mean **and** ≥ 400 |
+| `PAIRING` | best regular ally (`company.withP`, ≥ 20 games) wins ≥ 5 pts above the player's overall rate |
+| `FORM` | last 15 scoped games differ from the games before them by ≥ 10 pts (needs ≥ 35 scoped) |
+| `FACTION` | best vs. worst faction win rate (each ≥ 15 games) differ by ≥ 12 pts |
+| `ENERGY TILT` | energy vs. `INDEX` mean runs ≥ 14 pts ahead of the metal delta (and energy ≥ +12%) |
+| `BIG ECONOMY` | both metal **and** energy averages ≥ +10% vs the `INDEX` mean (suppressed if `ENERGY TILT` fired) |
+| `DAMAGE SOAKED` | mean `damageReceived` ≥ +18% vs the `INDEX` mean (suppressed if the negative `DAMAGE TRADES` fired) |
+| `DAMAGE TRADES` | per-game `damageDealt ÷ damageReceived` differs from the `INDEX` mean by ≥ 12 pts (good above, watch below); worded as "damage dealt per 100 taken" |
+
+All the `INDEX`-relative rules use the same population mean the Averages grid
+deltas are built from.
+
+---
+
 ## 4. Form over time
 
 A line chart over the **last 50 scoped games** (`scoped.slice(-50)`), oldest on
@@ -194,8 +253,8 @@ the left. A metric selector and a *Per game* / *Rolling 10* toggle.
 
 | Metric | Per-game value |
 |---|---|
-| Metal / min | `metalProduced / gameMinutes` |
-| Energy / min | `energyProduced / gameMinutes` |
+| Metal / s | `metalProduced / gameSeconds` — matches the in-game m/s |
+| Energy / s | `energyProduced / gameSeconds` — matches the in-game e/s |
 | Damage dealt | `damageDealt` |
 | Damage taken | `damageReceived` |
 | Efficiency | `damageDealt / damageReceived × 100` |
@@ -203,7 +262,8 @@ the left. A metric selector and a *Per game* / *Rolling 10* toggle.
 | Units made | `unitsProduced` |
 | OS | OpenSkill rating at that game |
 
-`gameMinutes = durationMs / 60000` (min 1 to avoid divide-by-zero). Missing
+`gameSeconds = durationMs / 1000`, `gameMinutes = durationMs / 60000` (both min 1
+to avoid divide-by-zero). Missing
 values create gaps in the line (the path lifts the pen).
 
 * **Per game** — the raw per-game series (faint line + area fill).
@@ -410,8 +470,8 @@ Clicking a row opens that replay in the detail view.
 result            = allyTeam.won ? 'win' : (won === false ? 'loss' : 'undecided')
 winRate           = wins / (wins + losses)          # undecided excluded
 efficiency (%)    = damageDealt / damageReceived * 100
-metalPerMin       = metalProduced / (durationMs / 60000)
-energyPerMin      = energyProduced / (durationMs / 60000)
+metalPerSec       = metalProduced / (durationMs / 1000)     # in-game m/s
+energyPerSec      = energyProduced / (durationMs / 1000)    # in-game e/s
 cmdPerMin         = PlayerStatistics.numCommands / (gameTimeSeconds / 60)
 averageX          = mean(scoped appearances' X)
 baselineX         = mean(ALL indexed appearances' X)   # ignores scope
@@ -437,6 +497,8 @@ thinSample        = scoped.length < 20
 |---|---|
 | Min players per side to index a game | 6 (`MIN_TEAM_SIZE`, 2 ally teams only) |
 | Thin-sample cutoff | 20 games |
+| Fingerprint: min games with a damage stat | 10 |
+| Fingerprint: axis fallback to 50th pct | < 3 player or < 20 population samples |
 | Win-rate green / red | ≥ 54% / ≤ 46% |
 | Form chart window | last 50 games |
 | Rolling average window | 10 games |

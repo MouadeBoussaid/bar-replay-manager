@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AnalyticsScope,
   BackfillProgress,
+  PlayerFingerprint,
   PlayerReport,
   ReportBar,
+  ReportInsight,
   ReportStartMap
 } from '../../shared/types'
 import { CURRENT_SEASON, SEASONS, seasonScope } from '../../shared/seasons'
@@ -139,6 +141,9 @@ export function AnalyticsView({
       ) : (
         <>
           <AveragesGrid report={report} />
+          {report.fingerprint && (
+            <PlaystyleFingerprint fp={report.fingerprint} insights={report.insights} />
+          )}
           <FormOverTime report={report} onOpenReplay={onOpenReplay} />
           <BreakdownRow report={report} />
           <StartHeatCard report={report} />
@@ -226,15 +231,17 @@ function PlayerSearch({
   names: string[]
   onPick: (n: string) => void
 }): JSX.Element {
-  const [q, setQ] = useState('')
+  // null = not editing (show the active player); a string (incl. "") = the
+  // in-progress query, so the field can be cleared right down to empty.
+  const [q, setQ] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const matches = useMemo(() => rankPlayerNames(names, q, 10), [q, names])
+  const matches = useMemo(() => rankPlayerNames(names, q ?? '', 10), [q, names])
 
   return (
     <div className="an-search">
       <span className="an-search-icon">⌕</span>
       <input
-        value={q || value}
+        value={q ?? value}
         placeholder="Player…"
         spellCheck={false}
         onChange={(e) => {
@@ -245,7 +252,10 @@ function PlayerSearch({
           setQ('')
           setOpen(true)
         }}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onBlur={() => window.setTimeout(() => {
+          setOpen(false)
+          setQ(null)
+        }, 120)}
       />
       {value && (
         <button
@@ -254,7 +264,7 @@ function PlayerSearch({
           onMouseDown={(e) => {
             e.preventDefault()
             onPick('')
-            setQ('')
+            setQ(null)
           }}
         >
           ✕
@@ -268,7 +278,7 @@ function PlayerSearch({
               onMouseDown={(e) => {
                 e.preventDefault()
                 onPick(n)
-                setQ('')
+                setQ(null)
                 setOpen(false)
               }}
             >
@@ -302,8 +312,8 @@ const BASELINE_HELP =
 
 /** Meaning of each "Form over time" metric, keyed by FORM_METRICS[].key. */
 const FORM_METRIC_HELP: Record<string, string> = {
-  metalPerMin: 'Metal produced ÷ game length (minutes) — economy pace, comparable across games of any length.',
-  energyPerMin: 'Energy produced ÷ game length (minutes).',
+  metalPerSec: 'Metal produced ÷ game length in seconds — the in-game m/s income figure, comparable across games of any length.',
+  energyPerSec: 'Energy produced ÷ game length in seconds — the in-game e/s income figure.',
   damageDealt: 'Total damage dealt in the game.',
   damageTaken: 'Total damage taken in the game.',
   efficiency: 'Damage dealt ÷ damage taken × 100. Over 100% means you out-traded the enemy that game.',
@@ -329,6 +339,106 @@ function AveragesGrid({ report }: { report: PlayerReport }): JSX.Element {
   )
 }
 
+/* -------------------------------------------------- playstyle fingerprint */
+
+function PlaystyleFingerprint({
+  fp,
+  insights
+}: {
+  fp: PlayerFingerprint
+  insights: ReportInsight[]
+}): JSX.Element {
+  const CX = 150
+  const CY = 122
+  const R = 82
+  const axes = fp.axes // already clockwise from top
+  const ang = (i: number): number => (-90 + i * 60) * (Math.PI / 180)
+  const pt = (pct: number, i: number): [number, number] => {
+    const r = (R * Math.max(0, Math.min(100, pct))) / 100
+    return [CX + r * Math.cos(ang(i)), CY + r * Math.sin(ang(i))]
+  }
+  const poly = (vals: number[]): string =>
+    vals.map((v, i) => pt(v, i).join(',')).join(' ')
+
+  const rings = [25, 50, 75, 100]
+  const player = axes.map((a) => a.percentile)
+  const baseline = axes.map((a) => a.baselinePercentile)
+
+  return (
+    <div className="an-card an-fp">
+      <div className="an-card-head">
+        <span className="an-section-title" title="A six-axis playstyle profile. Each axis is a percentile (0–100) against every indexed game in the pool; the archetype is picked from a fixed rule table over the six values.">
+          Playstyle fingerprint
+        </span>
+        <span className="an-sub">percentile vs. all indexed games</span>
+      </div>
+
+      <div className="an-fp-body">
+        <div className="an-fp-archetype">
+          <span className="an-fp-name">{fp.archetype}</span>
+          <span className="an-fp-blurb">{fp.blurb}</span>
+          {insights.length > 0 && (
+            <div className="an-fp-insights">
+              {insights.map((it, i) => (
+                <div key={i} className={`an-insight an-insight-${it.tone}`}>
+                  <span className="an-insight-tag">{it.tag}</span>
+                  <span className="an-insight-text">{it.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="an-fp-chart-wrap">
+          <svg className="an-fp-svg" viewBox="0 0 300 240" role="img" aria-label={`Playstyle: ${fp.archetype}`}>
+            {rings.map((r) => (
+              <polygon
+                key={r}
+                className={`an-fp-ring${r === 100 ? ' edge' : ''}`}
+                points={poly([r, r, r, r, r, r])}
+              />
+            ))}
+            {axes.map((a, i) => {
+              const [ex, ey] = pt(100, i)
+              return <line key={a.key} className="an-fp-spoke" x1={CX} y1={CY} x2={ex} y2={ey} />
+            })}
+
+            <polygon className="an-fp-baseline" points={poly(baseline)} />
+            <polygon className="an-fp-area" points={poly(player)} />
+            {axes.map((a, i) => {
+              const [vx, vy] = pt(a.percentile, i)
+              return <circle key={a.key} className="an-fp-vertex" cx={vx} cy={vy} r={2.8} />
+            })}
+
+            {axes.map((a, i) => {
+              const [lx, ly] = pt(116, i)
+              const c = Math.cos(ang(i))
+              const anchor = c > 0.35 ? 'start' : c < -0.35 ? 'end' : 'middle'
+              return (
+                <g key={a.key} className="an-fp-axis-label">
+                  <title>{`${a.label}: ${a.percentile}th percentile · ${a.rawLabel} · lobby avg ${a.baselinePercentile}th`}</title>
+                  <text x={lx} y={ly - 3} textAnchor={anchor} className="an-fp-axis-name">
+                    {a.label.toUpperCase()}
+                  </text>
+                  <text x={lx} y={ly + 9} textAnchor={anchor} className="an-fp-axis-pct">
+                    {a.percentile}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+
+          <div className="an-fp-legend">
+            <span><i className="an-fp-key-line" /> {fp.archetype}</span>
+            <span><i className="an-fp-key-dash" /> lobby average</span>
+            <span className="an-fp-legend-unit">percentile</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ---------------------------------------------------------- form over time */
 
 function FormOverTime({
@@ -338,7 +448,7 @@ function FormOverTime({
   report: PlayerReport
   onOpenReplay: (f: string) => void
 }): JSX.Element {
-  const [metric, setMetric] = useState(report.form.metrics[0]?.key ?? 'metalPerMin')
+  const [metric, setMetric] = useState(report.form.metrics[0]?.key ?? 'metalPerSec')
   const [mode, setMode] = useState<'game' | 'roll'>('game')
   const [hover, setHover] = useState<number | null>(null)
 
