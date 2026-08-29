@@ -11,7 +11,9 @@ import type {
   ReportStartSpot
 } from '../shared/types'
 import { teamColorNames } from '../shared/team-colors'
+import { seasonBounds } from '../shared/seasons'
 import { roleForPosition } from './map-roles'
+import { mapHasNames, nameForPosition } from './map-names'
 import { store } from './store'
 
 /** One player's line in one replay — the unit the analytics tab aggregates over. */
@@ -37,6 +39,8 @@ interface Appearance {
   startNY?: number
   /** Curated start-position role (air / front / tech / sea, …), when resolvable. */
   role?: string
+  /** Community name for the deploy spot, when one is mapped for this map. */
+  spotName?: string
   metalProduced?: number
   metalExcess?: number
   energyProduced?: number
@@ -101,6 +105,8 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
         pos != null
           ? (roleForPosition(mapName, ppt, teamCount, pos.ex, pos.ez) ?? undefined)
           : undefined
+      const spotName =
+        pos != null ? (nameForPosition(mapName, pos.ex, pos.ez) ?? undefined) : undefined
       out.push({
         name: p.name,
         nameKey: p.name.toLowerCase(),
@@ -121,6 +127,7 @@ function extractAppearances(meta: ReplayMeta): Appearance[] {
         startNX: pos?.nx,
         startNY: pos?.ny,
         role,
+        spotName,
         metalProduced: s?.metalProduced,
         metalExcess: s?.metalExcess,
         energyProduced: s?.energyProduced,
@@ -330,9 +337,15 @@ export function buildPlayerReport(name: string, scope: AnalyticsScope): PlayerRe
 
 function applyScope(rows: Appearance[], scope: AnalyticsScope): Appearance[] {
   if (scope === 'last50') return rows.slice(-50)
-  if (scope === '90d') {
-    const cutoff = Date.now() - 90 * 86_400_000
-    return rows.filter((a) => a.startTime && new Date(a.startTime).getTime() >= cutoff)
+  if (scope === 'all') return rows
+  const m = /^s(\d+)$/.exec(scope)
+  if (m) {
+    const { start, end } = seasonBounds(Number(m[1]))
+    return rows.filter((a) => {
+      if (!a.startTime) return false
+      const t = new Date(a.startTime).getTime()
+      return (start == null || t >= start) && (end == null || t < end)
+    })
   }
   return rows
 }
@@ -475,8 +488,10 @@ function groupCount<T>(rows: T[], keyOf: (r: T) => string): Map<string, T[]> {
 
 /** Merge distance for clustering deploy points, in normalised map units. */
 const SPOT_MERGE_DIST = 0.055
+/** An un-named deploy spot needs this many games before it earns its own point. */
+const START_SPOT_MIN_GAMES = 3
 /** A map needs this many positioned games before it earns a heatmap. */
-const START_MAP_MIN_GAMES = 6
+const START_MAP_MIN_GAMES = 4
 /** Show at most this many maps. */
 const START_MAP_LIMIT = 6
 
@@ -491,31 +506,59 @@ function buildStartMaps(scoped: Appearance[]): ReportStartMap[] {
       // Latest full name in the group — for the right minimap texture version.
       scriptName: g[g.length - 1]!.scriptName,
       games: g.length,
-      spots: clusterStartSpots(g)
+      spots: clusterStartSpots(g, name)
     }))
 }
 
 /**
- * Greedy proximity clustering of a player's deploy points on one map, followed
- * by a merge pass for clusters that drift together. Each spot carries the games
- * played from it and the win rate there.
+ * Turn a player's deploy points on one map into a handful of stat points.
+ *
+ * Games at a *named* position (the community-name table) group straight by that
+ * name — one point per name, so mirror halves and a few split deploy spots all
+ * count together. Everything else gets greedy proximity clustering plus a merge
+ * pass for clusters that drift together. On curated maps the two ally sides are
+ * 180° rotations, so un-named points are also folded into one half first — a
+ * mirror pair then lands in one cluster instead of two.
  */
-function clusterStartSpots(rows: Appearance[]): ReportStartSpot[] {
-  interface C {
+function clusterStartSpots(rows: Appearance[], mapName: string): ReportStartSpot[] {
+  const fold = mapHasNames(mapName)
+  const cx = (a: Appearance): number => (fold && a.startNY! < 0.5 ? 1 - a.startNX! : a.startNX!)
+  const cy = (a: Appearance): number => (fold && a.startNY! < 0.5 ? 1 - a.startNY! : a.startNY!)
+
+  interface Spot {
     x: number
     y: number
     rows: Appearance[]
+    name?: string
   }
-  const clusters: C[] = []
-  const recentre = (c: C): void => {
-    c.x = mean(c.rows.map((r) => r.startNX!))
-    c.y = mean(c.rows.map((r) => r.startNY!))
+  const recentre = (c: Spot): void => {
+    c.x = mean(c.rows.map(cx))
+    c.y = mean(c.rows.map(cy))
   }
 
+  const byName = new Map<string, Spot>()
+  const spots: Spot[] = []
+  const loose: Appearance[] = []
   for (const a of rows) {
-    const x = a.startNX!
-    const y = a.startNY!
-    let best: C | null = null
+    if (a.spotName) {
+      const g = byName.get(a.spotName)
+      if (g) {
+        g.rows.push(a)
+      } else {
+        const fresh: Spot = { x: 0, y: 0, rows: [a], name: a.spotName }
+        byName.set(a.spotName, fresh)
+        spots.push(fresh)
+      }
+    } else {
+      loose.push(a)
+    }
+  }
+
+  const clusters: Spot[] = []
+  for (const a of loose) {
+    const x = cx(a)
+    const y = cy(a)
+    let best: Spot | null = null
     let bestD = SPOT_MERGE_DIST
     for (const c of clusters) {
       const d = Math.hypot(c.x - x, c.y - y)
@@ -531,7 +574,6 @@ function clusterStartSpots(rows: Appearance[]): ReportStartSpot[] {
       clusters.push({ x, y, rows: [a] })
     }
   }
-
   for (let pass = 0; pass < 6; pass++) {
     let merged = false
     for (let i = 0; i < clusters.length && !merged; i++) {
@@ -549,24 +591,35 @@ function clusterStartSpots(rows: Appearance[]): ReportStartSpot[] {
     if (!merged) break
   }
 
-  return clusters
-    .map((c) => ({
-      x: round3(c.x),
-      y: round3(c.y),
-      games: c.rows.length,
-      winRate: winRateOf(c.rows),
-      role: majorityRole(c.rows)
+  for (const g of byName.values()) recentre(g)
+  spots.push(...clusters)
+
+  return spots
+    .filter((g) => g.name != null || g.rows.length >= START_SPOT_MIN_GAMES)
+    .map((g) => ({
+      x: round3(g.x),
+      y: round3(g.y),
+      games: g.rows.length,
+      winRate: winRateOf(g.rows),
+      role: majorityRole(g.rows, (r) => r.role),
+      name: g.name
     }))
     .sort((a, b) => b.games - a.games)
 }
 
-/** The role most rows in a cluster agree on, or undefined when none is tagged. */
-function majorityRole(rows: Appearance[]): string | undefined {
+/** The value most rows in a cluster agree on, or undefined when none is tagged. */
+function majorityRole(
+  rows: Appearance[],
+  pick: (r: Appearance) => string | undefined
+): string | undefined {
   const tally = new Map<string, number>()
-  for (const r of rows) if (r.role) tally.set(r.role, (tally.get(r.role) ?? 0) + 1)
+  for (const r of rows) {
+    const v = pick(r)
+    if (v) tally.set(v, (tally.get(v) ?? 0) + 1)
+  }
   let best: string | undefined
   let bestN = 0
-  for (const [role, n] of tally) if (n > bestN) ((bestN = n), (best = role))
+  for (const [v, n] of tally) if (n > bestN) ((bestN = n), (best = v))
   return best
 }
 

@@ -1980,7 +1980,7 @@ body.dragging-divider * {
 .an-startmap-frame {
   position: relative;
   flex: none;
-  width: 264px;
+  width: 380px;
   aspect-ratio: 1 / 1;
   border: 1px solid var(--border-control);
   border-radius: 2px;
@@ -2024,6 +2024,35 @@ body.dragging-divider * {
 .an-startdot-n {
   font: 700 9px var(--mono);
   color: #10120f;
+}
+.an-startdot-tag {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 4px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(8, 10, 14, 0.74);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  color: #f2f3f5;
+  font: 700 8.5px var(--mono);
+  line-height: 1.45;
+  white-space: nowrap;
+  text-transform: capitalize;
+  pointer-events: none;
+}
+.an-startdot-tag.flip {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
+}
+/* Generic BAR-role label (no community name) — dimmer than a curated name. */
+.an-startdot-tag.role {
+  background: rgba(8, 10, 14, 0.6);
+  color: #c2c5cc;
+  font-weight: 500;
 }
 .an-startmap-side {
   flex: 1;
@@ -2364,12 +2393,13 @@ body.dragging-divider * {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 860px) {
   .an-startmap-row {
     flex-direction: column;
   }
   .an-startmap-frame {
     width: 100%;
+    max-width: 460px;
   }
 }
 

@@ -6,6 +6,7 @@ import type {
   ReportBar,
   ReportStartMap
 } from '../../shared/types'
+import { CURRENT_SEASON, SEASONS, seasonScope } from '../../shared/seasons'
 import { fmtClock, fmtCompact } from './format'
 import { rankPlayerNames } from './nameMatch'
 import { useMapImage } from './useMapImage'
@@ -21,10 +22,11 @@ interface Props {
 }
 
 const SCOPES: [AnalyticsScope, string][] = [
+  ...SEASONS.map((s): [AnalyticsScope, string] => [seasonScope(s.id), s.label]),
   ['all', 'All time'],
-  ['90d', 'Last 90 days'],
   ['last50', 'Last 50 games']
 ]
+const DEFAULT_SCOPE: AnalyticsScope = seasonScope(CURRENT_SEASON.id)
 
 export function AnalyticsView({
   playerName,
@@ -32,7 +34,7 @@ export function AnalyticsView({
   onOpenReplay,
   suggestedPlayer
 }: Props): JSX.Element {
-  const [scope, setScope] = useState<AnalyticsScope>('all')
+  const [scope, setScope] = useState<AnalyticsScope>(DEFAULT_SCOPE)
   const [report, setReport] = useState<PlayerReport | null | 'loading'>(
     playerName ? 'loading' : null
   )
@@ -644,7 +646,7 @@ function StartHeatCard({ report }: { report: PlayerReport }): JSX.Element {
       <div className="an-card-head">
         <span
           className="an-section-title"
-          title="Where you deploy on each of your most-played maps, from the bar-rts start positions. Spots are your own deploy points clustered together and ranked by use — spot 1 is where you go most on that map. Roles (air / front / tech / sea) come from BAR’s map metadata. Everything is compared within one map only."
+          title="Where you deploy on each of your most-played maps, from the bar-rts start positions. Spots are your own deploy points clustered together and ranked by use — spot 1 is where you go most on that map. Mirror positions are counted as one. Labels are the community name for that spot, or BAR’s role (air / front / tech / sea) when it has no name. Everything is compared within one map only."
         >
           Start positions
         </span>
@@ -664,7 +666,22 @@ function StartMapRow({ map, thin }: { map: ReportStartMap; thin: boolean }): JSX
   const photo = useMapImage(map.scriptName, 'thumb')
   const maxGames = Math.max(1, ...map.spots.map((s) => s.games))
   const spotLabel = (s: ReportStartMap['spots'][number], i: number): string =>
-    s.role ?? `Spot ${i + 1}`
+    s.name ?? s.role ?? `Spot ${i + 1}`
+  // Minimap tag: community name, else the BAR role; a bare number only when
+  // neither exists.
+  const tagText = (s: ReportStartMap['spots'][number]): string | null => s.name ?? s.role ?? null
+
+  // Where two tags land on the same place (mirror positions that carry different
+  // labels) stack them vertically instead of overprinting.
+  const tagBump = new Map<number, number>()
+  const tagAt: { x: number; y: number; level: number }[] = []
+  map.spots.forEach((s, i) => {
+    if (!tagText(s)) return
+    let level = 0
+    while (tagAt.some((t) => t.level === level && Math.hypot(t.x - s.x, t.y - s.y) < 0.06)) level++
+    tagAt.push({ x: s.x, y: s.y, level })
+    if (level > 0) tagBump.set(i, level)
+  })
 
   return (
     <div className="an-startmap-row">
@@ -676,6 +693,7 @@ function StartMapRow({ map, thin }: { map: ReportStartMap; thin: boolean }): JSX
         )}
         {map.spots.map((s, i) => {
           const size = 15 + Math.round((s.games / maxGames) * 26)
+          const flip = s.x > 0.62
           return (
             <span
               key={i}
@@ -684,6 +702,14 @@ function StartMapRow({ map, thin }: { map: ReportStartMap; thin: boolean }): JSX
               title={`${spotLabel(s, i)} · ${s.games} game${s.games === 1 ? '' : 's'} · ${fmtWr(s.winRate)} win rate`}
             >
               <span className="an-startdot-n">{i + 1}</span>
+              {tagText(s) && (
+                <span
+                  className={`an-startdot-tag${s.name ? '' : ' role'}${flip ? ' flip' : ''}`}
+                  style={{ marginTop: (tagBump.get(i) ?? 0) * 15 }}
+                >
+                  {tagText(s)}
+                </span>
+              )}
             </span>
           )
         })}

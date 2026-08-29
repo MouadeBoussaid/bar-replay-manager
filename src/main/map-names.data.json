@@ -1,0 +1,31 @@
+{
+  "supreme isthmus": [
+    [4339, 9818, "Tech Geo"],
+    [7966, 2537, "Tech Geo"],
+    [2512, 8752, "Pond"],
+    [2059, 7777, "Pond"],
+    [3040, 8217, "Pond"],
+    [9747, 3568, "Pond"],
+    [11336, 1818, "Eco"],
+    [936, 10475, "Eco"],
+    [7496, 1232, "Beach sea"],
+    [5669, 1356, "Beach sea"],
+    [4794, 11038, "Beach sea"],
+    [648, 7381, "Cove sea"],
+    [11620, 4910, "Cove sea"],
+    [7641, 4824, "Suicide front"],
+    [4661, 7449, "Suicide front"]
+  ],
+  "all that glitters": [
+    [1846, 8234, "Carry"],
+    [4304, 1997, "Carry"],
+    [665, 8220, "Anti Canyon"],
+    [5480, 2016, "Anti Canyon"],
+    [1152, 1976, "Canyon"],
+    [5150, 8261, "Canyon"],
+    [3037, 1986, "Rainbow"],
+    [3209, 8251, "Rainbow"],
+    [1921, 9663, "Tech"],
+    [4261, 536, "Tech"]
+  ]
+}

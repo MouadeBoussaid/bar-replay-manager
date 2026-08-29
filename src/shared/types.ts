@@ -156,7 +156,8 @@ export interface ReplayGraph {
 /** ---- User analytics ---------------------------------------------------- */
 
 export type GameResult = 'win' | 'loss' | 'undecided'
-export type AnalyticsScope = 'all' | '90d' | 'last50'
+/** `all`, `last50`, or a BAR season key like `s3` (see `shared/seasons.ts`). */
+export type AnalyticsScope = 'all' | 'last50' | `s${number}`
 
 export interface ReportAverage {
   key: string
@@ -208,6 +209,8 @@ export interface ReportStartSpot {
   winRate: number | null
   /** Curated role for this spot (air / front / tech / sea, …), when the map is covered. */
   role?: string
+  /** Community name for this spot, when one is mapped — shown instead of the role. */
+  name?: string
 }
 
 export interface ReportStartMap {
