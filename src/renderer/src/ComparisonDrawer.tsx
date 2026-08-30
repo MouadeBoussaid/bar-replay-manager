@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PlayerMeta, ReplayGraph, ReplayMeta } from '../../shared/types'
+import type { ComparisonSeries, PlayerMeta, ReplayMeta } from '../../shared/types'
 import { teamColorNames } from '../../shared/team-colors'
 import { fmtCompact } from './format'
 
@@ -55,7 +55,7 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
       return 'field'
     }
   })
-  const [graph, setGraph] = useState<ReplayGraph | null | 'loading'>('loading')
+  const [series, setSeries] = useState<ComparisonSeries | null | 'loading'>('loading')
   /** Window as inclusive sample indices, or null until the timeline loads. */
   const [win, setWin] = useState<[number, number] | null>(null)
   const [cursor, setCursor] = useState(0)
@@ -86,19 +86,21 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
     }
   }, [armyMode])
 
+  // Refetch when the pair changes; keep the current chart visible until it lands
+  // (the sample grid is identical, so window/cursor stay put).
   useEffect(() => {
+    if (!aName || !bName) return
     let cancelled = false
-    setGraph('loading')
     window.api
-      .getReplayGraph(meta.filePath)
-      .then((g) => !cancelled && setGraph(g && g.times.length >= 2 ? g : null))
-      .catch(() => !cancelled && setGraph(null))
+      .getComparisonSeries({ filePath: meta.filePath, players: [aName, bName] })
+      .then((s) => !cancelled && setSeries(s && s.times.length >= 2 ? s : null))
+      .catch(() => !cancelled && setSeries(null))
     return () => {
       cancelled = true
     }
-  }, [meta.filePath])
+  }, [meta.filePath, aName, bName])
 
-  const times = graph && graph !== 'loading' ? graph.times : []
+  const times = series && series !== 'loading' ? series.times : []
   const n = times.length
 
   useEffect(() => {
@@ -118,31 +120,21 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const period = graph && graph !== 'loading' ? graph.periodSeconds : 15
+  const period = series && series !== 'loading' ? series.periodSeconds : 15
   const [lo, hi] = win ?? [0, Math.max(0, n - 1)]
   const cur = Math.min(hi, Math.max(lo, cursor))
 
   const aP = players.find((p) => p.name === aName) ?? null
   const bP = players.find((p) => p.name === bName) ?? null
 
-  const teamIdx = useMemo(() => {
-    const m = new Map<string, number>()
-    if (graph && graph !== 'loading') graph.teams.forEach((t, i) => m.set(t.name.toLowerCase(), i))
-    return m
-  }, [graph])
-
-  const aTeam = aP ? teamIdx.get(aP.name.toLowerCase()) : undefined
-  const bTeam = bP ? teamIdx.get(bP.name.toLowerCase()) : undefined
-  const missingSeries =
-    graph !== 'loading' && (graph === null || aTeam === undefined || bTeam === undefined)
+  const missingSeries = series !== 'loading' && series === null
   const shortMatch = n > 0 && n < MIN_SPAN
 
   const model = useMemo(() => {
-    if (!graph || graph === 'loading' || missingSeries || !win || !aP || !bP) return null
-    if (aTeam === undefined || bTeam === undefined) return null
-    return buildModel(graph, aTeam, bTeam, aP.name, bP.name, lo, hi, armyMode)
+    if (!series || series === 'loading' || !win || !aP || !bP) return null
+    return buildModel(series, aP.name, bP.name, lo, hi, armyMode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph, missingSeries, aName, bName, aTeam, bTeam, lo, hi, armyMode])
+  }, [series, aName, bName, lo, hi, armyMode])
 
   const fmt = meta.allyTeams.map((t) => t.players.length).join('v')
   const matchLine = `${meta.map.name} · ${fmt} · ${mmss(meta.durationMs / 1000)}`
@@ -207,13 +199,13 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
         </div>
 
         <div className="cmp-body">
-          {graph === 'loading' && <p className="cmp-note">Loading match timeline…</p>}
+          {series === 'loading' && <p className="cmp-note">Loading match timeline…</p>}
 
           {missingSeries && (
             <p className="cmp-note">
-              This replay has no per-player time series
-              {graph !== null && ' for one of these players'} — older engine builds don’t
-              record resource ticks. The cards below fall back to end-of-game totals.
+              No per-player time series for this match — older engine builds don’t record
+              resource ticks, or a selected player isn’t in it. The cards below fall back to
+              end-of-game totals.
             </p>
           )}
 
@@ -356,8 +348,10 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
         </div>
 
         <div className="cmp-foot">
-          drag across a chart to scrub · sampled every {period}s · “on field” = metal spent ×
-          surviving-unit share (all unit types), an estimate
+          drag across a chart to scrub · sampled every {period}s ·{' '}
+          {series && series !== 'loading'
+            ? series.caveat
+            : '“on field” is an estimate, not true army value'}
         </div>
       </aside>
     </>
@@ -703,9 +697,7 @@ interface Readout {
 }
 
 function buildModel(
-  graph: ReplayGraph,
-  aTeam: number,
-  bTeam: number,
+  series: ComparisonSeries,
   aName: string,
   bName: string,
   lo: number,
@@ -724,45 +716,33 @@ function buildModel(
   cards: DeltaCard[]
   readouts: Readout[]
 } {
-  const times = graph.times
+  const times = series.times
   const wt = times.slice(lo, hi + 1)
 
-  const eco = (team: number): number[] => {
-    const m = graph.fields.metalProduced?.[team] ?? []
-    const e = graph.fields.energyProduced?.[team] ?? []
-    const base = (m[lo] ?? 0) + (e[lo] ?? 0) * ENERGY_WEIGHT
-    const out: number[] = []
-    for (let i = lo; i <= hi; i++) {
-      out.push(Math.max(0, (m[i] ?? 0) + (e[i] ?? 0) * ENERGY_WEIGHT - base))
-    }
-    return out
-  }
-  const ecoA = eco(aTeam)
-  const ecoB = eco(bTeam)
-  const ecoTotalA = ecoA[ecoA.length - 1] ?? 0
-  const ecoTotalB = ecoB[ecoB.length - 1] ?? 0
-  const ecoYMax = niceMax(Math.max(ecoTotalA, ecoTotalB, 1))
-
-  // --- estimated "value on field": a trailer-only heuristic, NOT true army value.
-  //   spent(t)   = cumulative metal spent on everything (exact, engine-reported)
-  //   onField(t) = spent(t) × (units still alive ÷ units ever produced)
-  // Every unit type counts — economy, defence and builders included. A later pass
-  // can multiply in an offensive-only share from demo build-order parsing.
+  // `clip` windows a series: cumulative ones are rebased to the window start,
+  // fluctuating levels are just sliced.
   const clip = (arr: number[], cumulative: boolean): number[] => {
     const base = cumulative ? (arr[lo] ?? 0) : 0
     return arr.slice(lo, hi + 1).map((v) => Math.max(0, v - base))
   }
-  const armyFullA = armySeries(graph, aTeam)
-  const armyFullB = armySeries(graph, bTeam)
-  const chartFullA = armyMode === 'spent' ? armyFullA.spent : armyFullA.onField
-  const chartFullB = armyMode === 'spent' ? armyFullB.spent : armyFullB.onField
+
+  const ecoA = clip(series.economy[0], true)
+  const ecoB = clip(series.economy[1], true)
+  const ecoTotalA = ecoA[ecoA.length - 1] ?? 0
+  const ecoTotalB = ecoB[ecoB.length - 1] ?? 0
+  const ecoYMax = niceMax(Math.max(ecoTotalA, ecoTotalB, 1))
+
+  // `spent` is cumulative; `onField` is a fluctuating level. Both are estimates —
+  // see series.caveat / comparison.ts.
+  const chartFullA = armyMode === 'spent' ? series.spent[0] : series.onField[0]
+  const chartFullB = armyMode === 'spent' ? series.spent[1] : series.onField[1]
   const armyA = clip(chartFullA, armyMode === 'spent')
   const armyB = clip(chartFullB, armyMode === 'spent')
   const armyYMax = niceMax(Math.max(...armyA, ...armyB, 1))
 
   // Delta cards always read the fluctuating "on field" view, whatever the toggle.
-  const fieldA = clip(armyFullA.onField, false)
-  const fieldB = clip(armyFullB.onField, false)
+  const fieldA = clip(series.onField[0], false)
+  const fieldB = clip(series.onField[1], false)
   const peakA = Math.max(...fieldA)
   const peakB = Math.max(...fieldB)
   const avgA = mean(fieldA)
@@ -796,8 +776,8 @@ function buildModel(
     for (let i = lo; i <= hi; i++) {
       if (Math.abs(times[i]! - 1200) < Math.abs(times[gi]! - 1200)) gi = i
     }
-    const v20A = armyFullA.onField[gi] ?? 0
-    const v20B = armyFullB.onField[gi] ?? 0
+    const v20A = series.onField[0][gi] ?? 0
+    const v20B = series.onField[1][gi] ?? 0
     cards.push(delta('On field at 20:00', fmtCompact(v20A), fmtCompact(v20B), v20A, v20B))
   }
 
@@ -837,12 +817,9 @@ function buildModel(
     })
   }
 
-  const exc = (team: number): number => {
-    const arr = graph.fields.metalExcess?.[team] ?? []
-    return Math.max(0, (arr[hi] ?? 0) - (arr[lo] ?? 0))
-  }
-  const excA = exc(aTeam)
-  const excB = exc(bTeam)
+  const windowExcess = (arr: number[]): number => Math.max(0, (arr[hi] ?? 0) - (arr[lo] ?? 0))
+  const excA = windowExcess(series.excess[0])
+  const excB = windowExcess(series.excess[1])
   if (Math.abs(excA - excB) >= 2000) {
     const hiName = excA >= excB ? aName : bName
     const loName = excA >= excB ? bName : aName
@@ -959,42 +936,4 @@ function fmtGap(sec: number): string {
 
 function signedCompact(v: number): string {
   return `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtCompact(Math.abs(v))}`
-}
-
-/**
- * Estimated "value on field" for one team — a trailer-only heuristic, **not** true
- * army value. It counts every unit type (economy, defence, builders) and can't see
- * per-unit cost or deaths, only team aggregates.
- *
- *   spent(t)   = cumulative metal spent on everything (exact, engine-reported)
- *   onField(t) = spent(t) × clamp(unitsAlive(t) ÷ unitsProduced(t), 0..1)
- *
- * unitsAlive folds in gifts and captures. A later pass can multiply `onField` by
- * an offensive-only share derived from demo build-order parsing.
- */
-function armySeries(
-  graph: ReplayGraph,
-  team: number
-): { spent: number[]; onField: number[] } {
-  const f = graph.fields
-  const used = f.metalUsed?.[team] ?? []
-  const made = f.unitsProduced?.[team] ?? []
-  const died = f.unitsDied?.[team] ?? []
-  const recv = f.unitsReceived?.[team] ?? []
-  const sent = f.unitsSent?.[team] ?? []
-  const capt = f.unitsCaptured?.[team] ?? []
-  const lost = f.unitsOutCaptured?.[team] ?? []
-
-  const spent: number[] = []
-  const onField: number[] = []
-  for (let i = 0; i < graph.times.length; i++) {
-    const u = used[i] ?? 0
-    const produced = made[i] ?? 0
-    const alive =
-      produced - (died[i] ?? 0) + (recv[i] ?? 0) - (sent[i] ?? 0) + (capt[i] ?? 0) - (lost[i] ?? 0)
-    const share = produced > 0 ? Math.max(0, Math.min(1, alive / produced)) : 0
-    spent.push(u)
-    onField.push(u * share)
-  }
-  return { spent, onField }
 }
