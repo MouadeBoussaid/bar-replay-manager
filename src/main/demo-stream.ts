@@ -8,8 +8,17 @@ import { collectIndexed, findSection, parseTdf } from './tdf'
  * "value on field" toward combat units.
  *
  * Message ids and layouts are from RecoilEngine `rts/Net/Protocol`
- * (NetMessageTypes.h / BaseNetProtocol.cpp). Confirmed against the source but
- * NOT yet against a corpus of real replays — treat the numbers as provisional.
+ * (NetMessageTypes.h / BaseNetProtocol.cpp), validated on real BAR replays with
+ * `scripts/inspect-stream.mjs`: chunk framing walks the whole stream, the id
+ * histogram matches (LUAMSG/NEWFRAME/COMMAND/AICOMMAND/…), and build orders come
+ * out in the right unitDefID range spread across every team.
+ *
+ * Known gaps (minor — they barely move a per-team ratio):
+ *   - ~97% of build orders arrive via NETMSG_COMMAND; the NETMSG_AICOMMAND path
+ *     (Lua-issued orders) is lightly used and its offsets are less certain.
+ *   - NETMSG_AICOMMANDS (batched) is not decoded, so a few build orders are missed.
+ *   - Orders on GAIA / unresolved players land on team 255 and are dropped by the
+ *     caller (which only asks about the two real teams).
  */
 
 const MAGIC = 'spring demofile'
