@@ -28,7 +28,8 @@ interface Props {
   onClose: () => void
 }
 
-type ArmyMode = 'alive' | 'spent'
+/** Second chart's mode. `field` = estimated value on field (heuristic), `spent` = cumulative metal spent. */
+type ArmyMode = 'field' | 'spent'
 
 interface DPlayer {
   name: string
@@ -49,9 +50,9 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
   const [bPick, setBPick] = useState<string | null>(null)
   const [armyMode, setArmyMode] = useState<ArmyMode>(() => {
     try {
-      return sessionStorage.getItem('cmp.armyMode') === 'spent' ? 'spent' : 'alive'
+      return sessionStorage.getItem('cmp.armyMode') === 'spent' ? 'spent' : 'field'
     } catch {
-      return 'alive'
+      return 'field'
     }
   })
   const [graph, setGraph] = useState<ReplayGraph | null | 'loading'>('loading')
@@ -262,11 +263,11 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
               />
 
               <ChartBlock
-                title="Army value"
+                title="Investment"
                 caption={
-                  (armyMode === 'alive'
-                    ? 'metal cost of offensive units currently alive'
-                    : 'cumulative metal spent on offensive units') + ' · placeholder data'
+                  armyMode === 'field'
+                    ? 'estimated value on field · metal spent × surviving-unit share · all unit types'
+                    : 'cumulative metal spent · all unit types'
                 }
                 seriesA={model.armyA}
                 seriesB={model.armyB}
@@ -279,10 +280,10 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
                 headRight={
                   <div className="segmented">
                     <button
-                      className={armyMode === 'alive' ? 'seg-on' : ''}
-                      onClick={() => setArmyMode('alive')}
+                      className={armyMode === 'field' ? 'seg-on' : ''}
+                      onClick={() => setArmyMode('field')}
                     >
-                      Alive
+                      On field
                     </button>
                     <button
                       className={armyMode === 'spent' ? 'seg-on' : ''}
@@ -355,8 +356,8 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
         </div>
 
         <div className="cmp-foot">
-          drag across a chart to scrub · sampled every {period}s · army value is placeholder
-          pending unit-level parsing
+          drag across a chart to scrub · sampled every {period}s · “on field” = metal spent ×
+          surviving-unit share (all unit types), an estimate
         </div>
       </aside>
     </>
@@ -742,48 +743,52 @@ function buildModel(
   const ecoTotalB = ecoB[ecoB.length - 1] ?? 0
   const ecoYMax = niceMax(Math.max(ecoTotalA, ecoTotalB, 1))
 
-  // --- placeholder army value: deterministic from the player name, replaced once
-  //     unit-level parsing exists. Both accumulations from one pass.
-  const aliveFullA = mockArmy(hashName(aName), times, 'alive')
-  const aliveFullB = mockArmy(hashName(bName), times, 'alive')
-  const chartFullA = armyMode === 'alive' ? aliveFullA : mockArmy(hashName(aName), times, 'spent')
-  const chartFullB = armyMode === 'alive' ? aliveFullB : mockArmy(hashName(bName), times, 'spent')
+  // --- estimated "value on field": a trailer-only heuristic, NOT true army value.
+  //   spent(t)   = cumulative metal spent on everything (exact, engine-reported)
+  //   onField(t) = spent(t) × (units still alive ÷ units ever produced)
+  // Every unit type counts — economy, defence and builders included. A later pass
+  // can multiply in an offensive-only share from demo build-order parsing.
   const clip = (arr: number[], cumulative: boolean): number[] => {
     const base = cumulative ? (arr[lo] ?? 0) : 0
     return arr.slice(lo, hi + 1).map((v) => Math.max(0, v - base))
   }
+  const armyFullA = armySeries(graph, aTeam)
+  const armyFullB = armySeries(graph, bTeam)
+  const chartFullA = armyMode === 'spent' ? armyFullA.spent : armyFullA.onField
+  const chartFullB = armyMode === 'spent' ? armyFullB.spent : armyFullB.onField
   const armyA = clip(chartFullA, armyMode === 'spent')
   const armyB = clip(chartFullB, armyMode === 'spent')
   const armyYMax = niceMax(Math.max(...armyA, ...armyB, 1))
 
-  const aliveA = clip(aliveFullA, false)
-  const aliveB = clip(aliveFullB, false)
-  const peakA = Math.max(...aliveA)
-  const peakB = Math.max(...aliveB)
-  const avgA = mean(aliveA)
-  const avgB = mean(aliveB)
+  // Delta cards always read the fluctuating "on field" view, whatever the toggle.
+  const fieldA = clip(armyFullA.onField, false)
+  const fieldB = clip(armyFullB.onField, false)
+  const peakA = Math.max(...fieldA)
+  const peakB = Math.max(...fieldB)
+  const avgA = mean(fieldA)
+  const avgB = mean(fieldB)
   const ratioA = peakA > 0 ? ecoTotalA / peakA : 0
   const ratioB = peakB > 0 ? ecoTotalB / peakB : 0
 
-  const spikeRel = (arr: number[]): number => {
-    const thr = 0.18 * Math.max(...arr, 1)
+  const rampRel = (arr: number[]): number => {
+    const thr = 0.2 * Math.max(...arr, 1)
     const i = arr.findIndex((v) => v >= thr)
     return i < 0 ? arr.length - 1 : i
   }
-  const tSpikeA = wt[spikeRel(aliveA)] ?? 0
-  const tSpikeB = wt[spikeRel(aliveB)] ?? 0
+  const tRampA = wt[rampRel(fieldA)] ?? 0
+  const tRampB = wt[rampRel(fieldB)] ?? 0
 
   const cards: DeltaCard[] = [
     delta('Economy total', fmtCompact(ecoTotalA), fmtCompact(ecoTotalB), ecoTotalA, ecoTotalB),
-    delta('Army peak', fmtCompact(peakA), fmtCompact(peakB), peakA, peakB),
-    delta('Army avg', fmtCompact(avgA), fmtCompact(avgB), avgA, avgB),
-    delta('Eco → army ratio', ratioA.toFixed(1), ratioB.toFixed(1), ratioA, ratioB),
+    delta('Peak on field', fmtCompact(peakA), fmtCompact(peakB), peakA, peakB),
+    delta('Avg on field', fmtCompact(avgA), fmtCompact(avgB), avgA, avgB),
+    delta('Eco ÷ on-field', ratioA.toFixed(1), ratioB.toFixed(1), ratioA, ratioB),
     {
-      key: 'First army spike',
-      a: mmss(tSpikeA),
-      b: mmss(tSpikeB),
-      delta: fmtGap(tSpikeB - tSpikeA),
-      tone: tSpikeB < tSpikeA ? 'b' : tSpikeA < tSpikeB ? 'a' : 'neutral'
+      key: 'Investment ramp',
+      a: mmss(tRampA),
+      b: mmss(tRampB),
+      delta: fmtGap(tRampB - tRampA),
+      tone: tRampB < tRampA ? 'b' : tRampA < tRampB ? 'a' : 'neutral'
     }
   ]
   if (times[lo]! <= 1200 && times[hi]! >= 1200) {
@@ -791,9 +796,9 @@ function buildModel(
     for (let i = lo; i <= hi; i++) {
       if (Math.abs(times[i]! - 1200) < Math.abs(times[gi]! - 1200)) gi = i
     }
-    const v20A = aliveFullA[gi] ?? 0
-    const v20B = aliveFullB[gi] ?? 0
-    cards.push(delta('Army at 20:00', fmtCompact(v20A), fmtCompact(v20B), v20A, v20B))
+    const v20A = armyFullA.onField[gi] ?? 0
+    const v20B = armyFullB.onField[gi] ?? 0
+    cards.push(delta('On field at 20:00', fmtCompact(v20A), fmtCompact(v20B), v20A, v20B))
   }
 
   // --- read-outs: template only, each renders when its threshold is crossed.
@@ -816,19 +821,19 @@ function buildModel(
     })
   }
 
-  const aAhead = aliveA.filter((v, i) => v > (aliveB[i] ?? 0)).length / Math.max(1, aliveA.length)
+  const aAhead = fieldA.filter((v, i) => v > (fieldB[i] ?? 0)).length / Math.max(1, fieldA.length)
   if (aAhead >= 0.6 || aAhead <= 0.4) {
     const holder = aAhead >= 0.6 ? aName : bName
     readouts.push({
-      tag: 'Army',
+      tag: 'On field',
       color: LINE_B,
-      text: `${holder} holds the higher army value for most of the window (placeholder data).`
+      text: `${holder} keeps more value on the field for most of the window (estimated, all unit types).`
     })
   } else {
     readouts.push({
-      tag: 'Army',
+      tag: 'On field',
       color: LINE_B,
-      text: `The army-value lead trades back and forth across the window (placeholder data).`
+      text: `Value on the field trades back and forth across the window (estimated, all unit types).`
     })
   }
 
@@ -876,8 +881,8 @@ function fallbackCards(
     delta('Damage dealt', a ? fmtCompact(a.damageDealt) : '—', b ? fmtCompact(b.damageDealt) : '—', a?.damageDealt ?? 0, b?.damageDealt ?? 0),
     delta('Damage taken', a ? fmtCompact(a.damageReceived) : '—', b ? fmtCompact(b.damageReceived) : '—', a?.damageReceived ?? 0, b?.damageReceived ?? 0, true),
     delta('Units made', a ? String(a.unitsProduced) : '—', b ? String(b.unitsProduced) : '—', a?.unitsProduced ?? 0, b?.unitsProduced ?? 0),
-    { key: 'Army peak', a: '—', b: '—', delta: 'no time series', tone: 'neutral' },
-    { key: 'First army spike', a: '—', b: '—', delta: 'no time series', tone: 'neutral' }
+    { key: 'Peak on field', a: '—', b: '—', delta: 'no time series', tone: 'neutral' },
+    { key: 'Investment ramp', a: '—', b: '—', delta: 'no time series', tone: 'neutral' }
   ]
 }
 
@@ -956,29 +961,40 @@ function signedCompact(v: number): string {
   return `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtCompact(Math.abs(v))}`
 }
 
-function hashName(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
+/**
+ * Estimated "value on field" for one team — a trailer-only heuristic, **not** true
+ * army value. It counts every unit type (economy, defence, builders) and can't see
+ * per-unit cost or deaths, only team aggregates.
+ *
+ *   spent(t)   = cumulative metal spent on everything (exact, engine-reported)
+ *   onField(t) = spent(t) × clamp(unitsAlive(t) ÷ unitsProduced(t), 0..1)
+ *
+ * unitsAlive folds in gifts and captures. A later pass can multiply `onField` by
+ * an offensive-only share derived from demo build-order parsing.
+ */
+function armySeries(
+  graph: ReplayGraph,
+  team: number
+): { spent: number[]; onField: number[] } {
+  const f = graph.fields
+  const used = f.metalUsed?.[team] ?? []
+  const made = f.unitsProduced?.[team] ?? []
+  const died = f.unitsDied?.[team] ?? []
+  const recv = f.unitsReceived?.[team] ?? []
+  const sent = f.unitsSent?.[team] ?? []
+  const capt = f.unitsCaptured?.[team] ?? []
+  const lost = f.unitsOutCaptured?.[team] ?? []
+
+  const spent: number[] = []
+  const onField: number[] = []
+  for (let i = 0; i < graph.times.length; i++) {
+    const u = used[i] ?? 0
+    const produced = made[i] ?? 0
+    const alive =
+      produced - (died[i] ?? 0) + (recv[i] ?? 0) - (sent[i] ?? 0) + (capt[i] ?? 0) - (lost[i] ?? 0)
+    const share = produced > 0 ? Math.max(0, Math.min(1, alive / produced)) : 0
+    spent.push(u)
+    onField.push(u * share)
   }
-  return (h >>> 0) / 2 ** 32
-}
-
-/** Deterministic stand-in for real army-value series. Replace with parsed data. */
-function mockArmy(seed: number, times: number[], mode: ArmyMode): number[] {
-  const peak = mode === 'spent' ? 52000 : 17000
-  const len = times.length
-  return times.map((_, i) => {
-    const f = len <= 1 ? 0 : i / (len - 1)
-    const nz = frac(Math.sin(seed * 91.7 + i * 12.9898) * 43758.5)
-    if (mode === 'spent') return peak * Math.pow(f, 1.12) * (0.9 + 0.2 * nz)
-    const ramp = peak * (0.12 + 0.9 * f)
-    const wob = 1 + 0.26 * Math.sin(f * 5.5 + seed * 6.28) - 0.22 * nz * f
-    return Math.max(0, ramp * wob)
-  })
-}
-
-function frac(x: number): number {
-  return x - Math.floor(x)
+  return { spent, onField }
 }
