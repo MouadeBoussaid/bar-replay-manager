@@ -1,6 +1,6 @@
 {
   "name": "bar-replay-manager",
-  "version": "0.1.0",
+  "version": "0.8.0",
   "description": "Browse, favourite, and prune Beyond All Reason replay files",
   "main": "./out/main/index.js",
   "author": "mouade.boussaid@gmail.com",

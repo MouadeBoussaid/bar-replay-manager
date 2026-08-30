@@ -1623,7 +1623,7 @@ body.dragging-divider * {
 .an-fp-body {
   display: flex;
   gap: 24px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 .an-fp-archetype {
   flex: 1;
@@ -1645,12 +1645,15 @@ body.dragging-divider * {
 }
 .an-fp-insights {
   display: flex;
-  flex-direction: column;
+  flex-flow: row wrap;
+  align-items: flex-end;
   gap: 7px;
-  margin-top: 8px;
-  max-width: 40ch;
+  margin-top: auto;
+  padding-top: 12px;
 }
 .an-insight {
+  flex: 1 1 180px;
+  min-width: 160px;
   background: #14161a;
   border-left: 2px solid var(--border-control);
   padding: 6px 10px;
