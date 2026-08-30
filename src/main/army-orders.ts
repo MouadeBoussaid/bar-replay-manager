@@ -1,52 +1,77 @@
-/**
- * Option C — offensive share of build investment from the demo command stream.
- *
- * The trailer only gives per-team aggregates, so `onField` in comparison.ts counts
- * every unit type. This module is meant to narrow that to combat units by reading
- * the demo's command packets:
- *
- *   1. Walk the demo stream (between the start script and the trailer). Each chunk
- *      is `float modGameTime | uint32 length | <packet>`; packet[0] is the msg id.
- *   2. Track the sim frame: +1 per NETMSG_NEWFRAME, absolute on NETMSG_KEYFRAME.
- *      Time = frame / 30.
- *   3. On a build command (NETMSG_COMMAND / NETMSG_AICOMMAND with `cmdID < 0`,
- *      where `unitDefID = -cmdID`), attribute `metalCost[unitDefID]` to the
- *      issuing player's team, split into offensive vs. total buckets, bucketed to
- *      the 15-s sample grid. NETMSG_COMMAND applies to the sender's current
- *      selection, so selection (NETMSG_SELECT) has to be tracked too.
- *   4. Return, per team, `offensiveMetalOrdered[i] / totalMetalOrdered[i]` — a
- *      slowly-varying ratio robust to the stream's over-counting (area orders,
- *      cancels and factory-repeat inflate numerator and denominator together).
- *
- * Two things are still needed before this can run and are the reason it returns
- * `null` today:
- *
- *   A. A `unitDefID → { metalCost, offensive }` table per BAR version. `cmdID`
- *      carries the *numeric* def id the engine assigned from archive load order;
- *      it is not in the demo and bar-rts.com does not publish it. Options: parse
- *      the BAR game archive on disk in load order, or vendor a generated table
- *      (see scripts/) keyed by `gameVersion`.
- *   B. Confirmation of the NETMSG_* ids and byte layouts for the engine builds in
- *      the wild, validated against real replays.
- *
- * Until then comparison.ts reports `source: 'trailer-estimate'`.
- */
-
-/** `unitDefID → { metalCost, offensive }`, per BAR version. Empty until generated (see the file header). */
-const UNIT_DEFS_BY_VERSION: Record<string, Record<number, { metalCost: number; offensive: boolean }>> =
-  {}
+import { readDemoStream } from './demo-stream'
+import { loadUnitDefs } from './unit-defs'
 
 /**
- * Per-team offensive share of build spend, one value per entry in `sampleTimes`
- * (0..1). Returns `null` when the data needed isn't available yet — callers must
- * treat that as "no offensive filtering".
+ * Option C — offensive share of build investment, per team, one value per
+ * `sampleTimes` entry (0..1):
+ *
+ *   share(t) = Σ metalCost[offensive builds ≤ t] ÷ Σ metalCost[all builds ≤ t]
+ *
+ * comparison.ts multiplies this into `onField` to narrow the estimate from
+ * "value of everything on the field" toward "value of the army on the field".
+ * Using the *cumulative* ratio keeps it slowly varying and largely cancels the
+ * stream's over-counting (area orders, cancels and factory-repeat inflate both
+ * sums together).
+ *
+ * Returns `null` — callers treat that as "no offensive filtering" — when:
+ *   - no unit-def table is bundled for the replay's version (none are yet; see
+ *     src/main/data/README.md), or
+ *   - the demo has no readable command stream.
  */
 export function offensiveMetalShare(
-  _filePath: string,
-  _teamIds: number[],
-  _sampleTimes: number[]
+  filePath: string,
+  teamIds: number[],
+  sampleTimes: number[]
 ): Map<number, number[]> | null {
-  // Blocked on the unit-def id table (A) and packet-layout validation (B) above.
-  if (Object.keys(UNIT_DEFS_BY_VERSION).length === 0) return null
-  return null
+  if (teamIds.length === 0 || sampleTimes.length === 0) return null
+
+  const stream = readDemoStream(filePath)
+  if (!stream) return null
+  const defs = loadUnitDefs(stream.gameVersion)
+  if (!defs) return null
+
+  const want = new Set(teamIds)
+  const offBin = new Map<number, number[]>()
+  const totBin = new Map<number, number[]>()
+  for (const id of teamIds) {
+    offBin.set(id, new Array<number>(sampleTimes.length).fill(0))
+    totBin.set(id, new Array<number>(sampleTimes.length).fill(0))
+  }
+
+  for (const order of stream.orders) {
+    if (order.teamId == null || !want.has(order.teamId)) continue
+    const def = defs.get(order.unitDefId)
+    if (!def || def.metalCost <= 0) continue
+    const bin = sampleIndex(sampleTimes, order.t)
+    totBin.get(order.teamId)![bin] += def.metalCost
+    if (def.offensive) offBin.get(order.teamId)![bin] += def.metalCost
+  }
+
+  const out = new Map<number, number[]>()
+  let anyData = false
+  for (const id of teamIds) {
+    const off = offBin.get(id)!
+    const tot = totBin.get(id)!
+    const share = new Array<number>(sampleTimes.length)
+    let cumOff = 0
+    let cumTot = 0
+    let last = 0
+    for (let i = 0; i < sampleTimes.length; i++) {
+      cumOff += off[i]!
+      cumTot += tot[i]!
+      if (cumTot > 0) {
+        last = cumOff / cumTot
+        anyData = true
+      }
+      share[i] = last
+    }
+    out.set(id, share)
+  }
+  return anyData ? out : null
+}
+
+/** Index of the first sample at or after `t`, clamped to the last sample. */
+function sampleIndex(times: number[], t: number): number {
+  for (let i = 0; i < times.length; i++) if (times[i]! >= t) return i
+  return times.length - 1
 }

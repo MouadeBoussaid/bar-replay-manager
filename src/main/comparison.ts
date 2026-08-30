@@ -14,8 +14,9 @@ const ENERGY_WEIGHT = 1 / 20
  *
  * `survivingShare` = units still alive ÷ units ever produced (a count ratio, from
  * the trailer). `offensiveShare` = the fraction of build investment that went to
- * combat units, from demo build-order parsing — currently 1 (see army-orders.ts),
- * which makes `onField` an all-unit-types figure.
+ * combat units, from demo build-order parsing (army-orders.ts); it is 1 whenever
+ * no unit-def table is bundled for the replay's version, which makes `onField` an
+ * all-unit-types figure. `source` records which case applied.
  */
 export function buildComparison(req: ComparisonRequest): ComparisonSeries | null {
   const graph = buildReplayGraph(req.filePath)
