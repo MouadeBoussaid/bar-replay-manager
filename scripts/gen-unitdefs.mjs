@@ -7,7 +7,7 @@
 // runtime (src/main/unit-defs.ts) picks the closest one that isn't newer than a
 // given replay.
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -18,6 +18,14 @@ const files = process.argv.slice(2)
 if (files.length === 0) {
   console.error('usage: node scripts/gen-unitdefs.mjs <dump.json> [more.json ...]')
   console.error('dumps come from running scripts/dump-unitdefs.lua as a BAR widget')
+  process.exit(1)
+}
+
+const missing = files.filter((f) => !existsSync(f))
+if (missing.length) {
+  console.error('file(s) not found:\n  ' + missing.join('\n  '))
+  console.error('\nunitdefs_dump.json is written to BAR\'s write directory (next to infolog.txt)')
+  console.error('when the dump-unitdefs.lua widget runs. Copy it here, or pass its full path.')
   process.exit(1)
 }
 
