@@ -1,28 +1,34 @@
 -- Dump UnitDefs for bar-replay-manager.
 --
--- Drop this file in your BAR "LuaUI/Widgets" folder, enable it once in-game
--- (any match, incl. a skirmish vs AI), then quit. It writes
--- `unitdefs_dump.json` to the BAR write directory (next to infolog.txt).
--- Feed that file to `node scripts/gen-unitdefs.mjs`.
+-- 1. Copy this file into your BAR write dir's widget folder, e.g.
+--      C:\Program Files\Beyond-All-Reason\data\LuaUI\Widgets\dump-unitdefs.lua
+-- 2. Launch BAR, start any match (a skirmish vs AI is fine).
+-- 3. Open the widget list (F11) and make sure "Dump UnitDefs (bar-replay-manager)"
+--    is enabled. It runs once on load and prints a "[dump-unitdefs] ..." line.
+-- 4. Quit BAR.
 --
--- The dump is the authoritative source of the unitDefID -> {metalCost, offensive}
--- mapping: it is the engine's own table for exactly this game version.
+-- It writes the table two ways, so at least one survives BAR's Lua sandbox:
+--   * unitdefs_dump.json  in the BAR write dir (next to infolog.txt), and
+--   * springsettings.cfg  key `bar_replay_manager_unitdefs` (written by the engine
+--     on exit — this one always works).
+--
+-- Then: node scripts/gen-unitdefs.mjs "<path to unitdefs_dump.json OR springsettings.cfg>"
 
 function widget:GetInfo()
   return {
     name    = "Dump UnitDefs (bar-replay-manager)",
-    desc    = "Writes unitdefs_dump.json, then does nothing",
+    desc    = "Writes unitDefID -> {metalCost, offensive} once, then idles",
     author  = "bar-replay-manager",
     date    = "2026",
-    license = "GPL v2 or later",
+    license = "GPL-2.0-or-later",
     layer   = 0,
     enabled = true,
   }
 end
 
--- Offensive = can shoot, and isn't a factory / builder / commander.
--- Static defence and anti-air keep their weapons and pass; radar, resource,
--- scouts and nano turrets have no weapons and fall out on their own.
+-- Offensive = can shoot, and isn't a factory / builder / commander. Static
+-- defence and anti-air keep their weapons and pass; radar, resource, scouts and
+-- nano turrets have no weapons and drop out on their own.
 local function isOffensive(ud)
   local hasWeapons = ud.weapons ~= nil and #ud.weapons > 0
   local cp = ud.customParams or {}
@@ -31,33 +37,37 @@ local function isOffensive(ud)
 end
 
 function widget:Initialize()
-  local rows = {}
+  local parts = {}
   for id, ud in pairs(UnitDefs) do
-    local metal = ud.metalCost or ud.buildCostMetal or 0
-    rows[#rows + 1] = string.format(
-      '    "%d": [%d, %d]', id, math.floor(metal + 0.5), isOffensive(ud) and 1 or 0
-    )
+    local metal = math.floor((ud.metalCost or ud.buildCostMetal or 0) + 0.5)
+    parts[#parts + 1] = string.format('"%d":[%d,%d]', id, metal, isOffensive(ud) and 1 or 0)
   end
 
-  local gameVersion = tostring(Game.gameVersion or "")
-  local gameName = tostring(Game.gameName or "")
-  local engine = tostring((Engine and Engine.version) or Game.version or "")
-
+  -- Compact, single line — must stay one line for springsettings.cfg.
   local body = string.format(
-    '{\n  "gameVersion": %q,\n  "gameName": %q,\n  "engineVersion": %q,\n  "units": {\n%s\n  }\n}\n',
-    gameVersion, gameName, engine, table.concat(rows, ",\n")
+    '{"gameName":%q,"gameVersion":%q,"engineVersion":%q,"units":{%s}}',
+    tostring(Game.gameName or ""),
+    tostring(Game.gameVersion or ""),
+    tostring((Engine and Engine.version) or Game.version or ""),
+    table.concat(parts, ",")
   )
 
-  local name = "unitdefs_dump.json"
-  local f = io.open(name, "w")
-  if f then
-    f:write(body)
-    f:close()
-    Spring.Echo("[dump-unitdefs] wrote " .. name .. " (" .. #rows .. " units) to the BAR write dir")
-  else
-    Spring.Echo("[dump-unitdefs] could not write a file; JSON follows in the log:")
-    Spring.Echo(body)
+  -- Always works: the engine flushes springsettings.cfg on exit.
+  Spring.SetConfigString("bar_replay_manager_unitdefs", body)
+
+  -- Also drop a real file when the Lua io sandbox allows it.
+  local wroteFile = false
+  if io and io.open then
+    local f = io.open("unitdefs_dump.json", "w")
+    if f then
+      f:write(body)
+      f:close()
+      wroteFile = true
+    end
   end
 
-  widgetHandler:RemoveWidget(self)
+  Spring.Echo(string.format(
+    "[dump-unitdefs] %d unit defs -> springsettings.cfg key 'bar_replay_manager_unitdefs'%s. Quit BAR, then run gen-unitdefs.mjs.",
+    #parts, wroteFile and " + unitdefs_dump.json" or " (file write was blocked)"
+  ))
 end

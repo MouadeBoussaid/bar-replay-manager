@@ -7,12 +7,17 @@ back to counting every unit type (`source: 'trailer-estimate'`).
 
 The file ships **empty**. Populate it like this:
 
-1. Copy `scripts/dump-unitdefs.lua` into your BAR `LuaUI/Widgets/` folder.
-2. Start any match (a skirmish vs. AI is fine), let the widget run once, quit.
-   It writes `unitdefs_dump.json` to the BAR write directory (next to
-   `infolog.txt`).
-3. `node scripts/gen-unitdefs.mjs path/to/unitdefs_dump.json` — regenerates
-   `unitDefTables.generated.ts`.
+1. Copy `scripts/dump-unitdefs.lua` into the BAR **write dir**'s widget folder —
+   the one next to `infolog.txt`, e.g.
+   `C:\Program Files\Beyond-All-Reason\data\LuaUI\Widgets\`.
+2. Launch BAR, start any match (a skirmish vs. AI is fine). Check the widget list
+   (F11) has "Dump UnitDefs (bar-replay-manager)" enabled — it runs once and
+   prints a `[dump-unitdefs] …` line. **Quit BAR** (the config flush happens on
+   exit).
+3. The table is now in the write dir as either `unitdefs_dump.json` or, if BAR's
+   Lua io sandbox blocked the file, `springsettings.cfg` (key
+   `bar_replay_manager_unitdefs`). Pass whichever exists:
+   `node scripts/gen-unitdefs.mjs "…\data\unitdefs_dump.json"` (or `…\springsettings.cfg`).
 
 Repeat with a dump from each BAR version you care about; pass several dumps in
 one `gen-unitdefs.mjs` call. Replays on a version newer than any bundled table

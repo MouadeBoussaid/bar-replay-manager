@@ -29,8 +29,19 @@ if (missing.length) {
   process.exit(1)
 }
 
+/** Accept either the widget's unitdefs_dump.json or a springsettings.cfg carrying the key. */
+function loadDump(file) {
+  const raw = readFileSync(file, 'utf8')
+  if (file.toLowerCase().endsWith('.cfg') || raw.includes('bar_replay_manager_unitdefs=')) {
+    const m = raw.match(/^\s*bar_replay_manager_unitdefs\s*=\s*(.+)$/m)
+    if (!m) throw new Error(`no "bar_replay_manager_unitdefs=" line in ${file} — did the widget run?`)
+    return JSON.parse(m[1].trim())
+  }
+  return JSON.parse(raw)
+}
+
 const tables = files.map((file) => {
-  const d = JSON.parse(readFileSync(file, 'utf8'))
+  const d = loadDump(file)
   const units = {}
   for (const [id, v] of Object.entries(d.units ?? {})) {
     const cost = Array.isArray(v) ? v[0] : v.metalCost
