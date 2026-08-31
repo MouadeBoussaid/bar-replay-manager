@@ -178,7 +178,7 @@ export interface ComparisonSeries {
   /** Seconds from game start for each sample. */
   times: number[]
   periodSeconds: number
-  /** Cumulative metal + energy produced (energy weighted ×1/20). */
+  /** Cumulative metal + energy produced (energy weighted ×1/60, so ~75% metal). */
   economy: [number[], number[]]
   /** Cumulative metal spent (all unit types). */
   spent: [number[], number[]]
