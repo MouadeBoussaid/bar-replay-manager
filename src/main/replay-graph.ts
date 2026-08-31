@@ -38,10 +38,10 @@ const FALLBACK_COLORS = [
 ]
 
 /** Build the Graphs-tab payload for one replay, or null when it has no series. */
-export function buildReplayGraph(filePath: string): ReplayGraph | null {
+export function buildReplayGraph(filePath: string, sharedBuf?: Buffer): ReplayGraph | null {
   let series: ReturnType<typeof readDemoSeries>
   try {
-    series = readDemoSeries(filePath)
+    series = readDemoSeries(filePath, sharedBuf)
   } catch {
     return null
   }

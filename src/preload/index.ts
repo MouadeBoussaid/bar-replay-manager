@@ -14,6 +14,7 @@ const api: Api = {
   getMapImage: (name, size) => ipcRenderer.invoke('map:image', name, size),
   getMapInfo: (name) => ipcRenderer.invoke('map:info', name),
   getReplayGraph: (filePath) => ipcRenderer.invoke('replay:graph', filePath),
+  getComparisonSeries: (req) => ipcRenderer.invoke('comparison:series', req),
   getIndexedPlayerNames: () => ipcRenderer.invoke('analytics:playerNames'),
   getPlayerReport: (name, scope) => ipcRenderer.invoke('analytics:playerReport', name, scope),
   windowMinimize: () => ipcRenderer.send('window:minimize'),

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReplayListItem, ReplayMeta, Settings } from '../../shared/types'
+import { ComparisonDrawer } from './ComparisonDrawer'
 import { DetailsTab } from './DetailsTab'
 import { GraphsTab } from './GraphsTab'
 import { OverviewTab } from './OverviewTab'
@@ -47,8 +48,10 @@ export function DetailPane(props: Props): JSX.Element {
   } = props
 
   const [tab, setTab] = useState<TabId>('overview')
+  const [compareOpen, setCompareOpen] = useState(false)
   useEffect(() => {
     if (listItem) setTab('overview')
+    setCompareOpen(false)
   }, [listItem?.filePath])
 
   const mapName = meta?.map.name ?? listItem?.mapName ?? null
@@ -167,7 +170,12 @@ export function DetailPane(props: Props): JSX.Element {
         ) : loading && !meta ? (
           <div className="detail-loading">Loading replay…</div>
         ) : !meta ? null : tab === 'overview' ? (
-          <OverviewTab meta={meta} listItem={listItem} onSaveFavourite={onSaveFavourite} />
+          <OverviewTab
+            meta={meta}
+            listItem={listItem}
+            onSaveFavourite={onSaveFavourite}
+            onCompare={() => setCompareOpen(true)}
+          />
         ) : tab === 'stats' ? (
           <StatsTab meta={meta} />
         ) : tab === 'graphs' ? (
@@ -181,6 +189,14 @@ export function DetailPane(props: Props): JSX.Element {
           />
         )}
       </div>
+
+      {compareOpen && meta && !parseFailed && (
+        <ComparisonDrawer
+          meta={meta}
+          perspectivePlayer={settings?.perspectivePlayerName ?? ''}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
     </section>
   )
 }

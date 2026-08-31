@@ -13,6 +13,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test:parser": "node scripts/parser-smoke.mjs",
+    "test:stream": "node scripts/stream-smoke.mjs",
+    "test": "npm run test:parser && npm run test:stream",
     "icons": "node scripts/make-icons.mjs",
     "dist": "electron-vite build && electron-builder --win nsis",
     "dist:dir": "electron-vite build && electron-builder --win --dir"

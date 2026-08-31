@@ -156,6 +156,42 @@ export interface ReplayGraph {
   fields: Record<string, number[][]>
 }
 
+/** ---- Player comparison drawer ---------------------------------------- */
+
+export interface ComparisonRequest {
+  filePath: string
+  /** Exactly two player names from this replay. */
+  players: [string, string]
+}
+
+/**
+ * Per-15-s series for two players in one match, for the comparison drawer.
+ * All arrays are the same length as `times`; `[a, b]` order matches the request.
+ *
+ * `onField` is an **estimate**, not true army value — see `caveat`:
+ *   spent(t)   = cumulative metal spent on everything (exact, engine-reported)
+ *   onField(t) = spent(t) × surviving-unit share × offensive share
+ * The offensive share is 1 until demo build-order parsing lands (`source`
+ * distinguishes the two).
+ */
+export interface ComparisonSeries {
+  /** Seconds from game start for each sample. */
+  times: number[]
+  periodSeconds: number
+  /** Cumulative metal + energy produced (energy weighted ×1/100, so ~83% metal). */
+  economy: [number[], number[]]
+  /** Cumulative metal spent (all unit types). */
+  spent: [number[], number[]]
+  /** Estimated metal value of units still on the field (all unit types). */
+  onField: [number[], number[]]
+  /** Cumulative metal excess — feeds the "banked vs spent" read-out. */
+  excess: [number[], number[]]
+  /** `trailer-estimate` = offensive share not yet applied; `stream-estimate` = build orders parsed. */
+  source: 'trailer-estimate' | 'stream-estimate'
+  /** One-line provenance note for the drawer footer. */
+  caveat: string
+}
+
 /** ---- User analytics ---------------------------------------------------- */
 
 export type GameResult = 'win' | 'loss' | 'undecided'
@@ -386,6 +422,11 @@ export interface Api {
   getMapInfo(mapName: string): Promise<MapInfo | null>
   /** Full per-team time-series (parsed on demand). Null when the demo has none. */
   getReplayGraph(filePath: string): Promise<ReplayGraph | null>
+  /**
+   * Two-player economy / value-on-field series for the comparison drawer. Null
+   * when the demo has no time series or a named player isn't in it.
+   */
+  getComparisonSeries(req: ComparisonRequest): Promise<ComparisonSeries | null>
   /** Distinct player names across every indexed replay (for the analytics picker). */
   getIndexedPlayerNames(): Promise<string[]>
   /** Aggregated playstyle report for one player. */

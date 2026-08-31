@@ -20,15 +20,35 @@ interface Props {
   meta: ReplayMeta
   listItem: ReplayListItem
   onSaveFavourite: (data: { note: string; tags: string[] }) => void
+  onCompare: () => void
 }
 
-export function OverviewTab({ meta, listItem, onSaveFavourite }: Props): JSX.Element {
+export function OverviewTab({ meta, listItem, onSaveFavourite, onCompare }: Props): JSX.Element {
   const rosters = buildRosters(meta)
   const colors = teamColorNames(meta)
   const slots = meta.allyTeams.reduce((n, t) => n + t.players.length, 0)
+  const humanCount = meta.allyTeams.reduce(
+    (n, t) => n + t.players.filter((p) => !p.isAi && !p.name.trim().endsWith('AI')).length,
+    0
+  )
 
   return (
     <div className="overview">
+      <div className="cmp-actions">
+        <button
+          className="cmp-open-btn"
+          disabled={humanCount < 2}
+          title={
+            humanCount < 2
+              ? 'Needs at least two human players to compare'
+              : 'Compare two players across this match’s timeline'
+          }
+          onClick={onCompare}
+        >
+          Compare players
+        </button>
+      </div>
+
       <div className="overview-top">
         <MapPanel meta={meta} colors={colors} slots={slots} />
         <StatGrid meta={meta} colors={colors} />

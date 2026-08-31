@@ -381,17 +381,22 @@ function readTrailer(buf: Buffer, o: TrailerLayout): Trailer {
   return { teamStats: [], playerStats: [], winningAllyTeams: w }
 }
 
+/** Read a demo file and gunzip it if needed. Reused so one read serves several parsers. */
+export function loadDemoBuffer(path: string): Buffer {
+  const fileBuf = readFileSync(path)
+  return fileBuf.length > 1 && fileBuf[0] === 0x1f && fileBuf[1] === 0x8b
+    ? gunzipSync(fileBuf)
+    : fileBuf
+}
+
 /**
  * Full per-team snapshot history for time-series graphs. Parsed on demand (not
  * cached with the rest of the metadata). Returns null when the demo has no
- * usable team-stats trailer (crash / early exit).
+ * usable team-stats trailer (crash / early exit). Pass `sharedBuf` to skip the
+ * file read when the caller already has the decompressed bytes.
  */
-export function readDemoSeries(path: string): DemoSeries | null {
-  const fileBuf = readFileSync(path)
-  const buf =
-    fileBuf.length > 1 && fileBuf[0] === 0x1f && fileBuf[1] === 0x8b
-      ? gunzipSync(fileBuf)
-      : fileBuf
+export function readDemoSeries(path: string, sharedBuf?: Buffer): DemoSeries | null {
+  const buf = sharedBuf ?? loadDemoBuffer(path)
   if (buf.length < 360 || buf.toString('ascii', 0, MAGIC.length) !== MAGIC) return null
 
   const headerSize = buf.readInt32LE(20)
