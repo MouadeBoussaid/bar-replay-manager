@@ -54,9 +54,9 @@ function loadDump(file) {
       seen++
       const id = Number(m[1])
       const kv = Object.fromEntries(m[3].split('|').map((s) => s.split('=')))
-      // `ud.cost` (a plain number in current engines) is the trustworthy one;
-      // `ud.metalCost` reported ~1000x for some units in the first dump.
-      const cost = num(kv.c) || num(kv.ctm) || num(kv.mc) || num(kv.bcm) || 0
+      // `ud.metalCost` (`mc`) is the metal cost. `ud.cost` (`c`) is a
+      // build-time-weighted figure ~1.17x higher — not metal.
+      const cost = num(kv.mc) || num(kv.ctm) || num(kv.bcm) || num(kv.c) || 0
       const offensive =
         num(kv.w) > 0 && kv.fac !== '1' && kv.bld !== '1' && kv.com !== '1' ? 1 : 0
       if (cost > 0) units[id] = [Math.round(cost), offensive]

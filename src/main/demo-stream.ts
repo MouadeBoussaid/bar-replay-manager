@@ -8,17 +8,21 @@ import { collectIndexed, findSection, parseTdf } from './tdf'
  * "value on field" toward combat units.
  *
  * Message ids and layouts are from RecoilEngine `rts/Net/Protocol`
- * (NetMessageTypes.h / BaseNetProtocol.cpp), validated on real BAR replays with
- * `scripts/inspect-stream.mjs`: chunk framing walks the whole stream, the id
- * histogram matches (LUAMSG/NEWFRAME/COMMAND/AICOMMAND/…), and build orders come
- * out in the right unitDefID range spread across every team.
+ * (NetMessageTypes.h / BaseNetProtocol.cpp), validated with
+ * `scripts/inspect-stream.mjs` against real BAR replays *of the same game
+ * version as the unit-def dump*: framing walks the whole stream, and the
+ * most-ordered units resolve to wind / tidal / metal-makers / nano turrets with
+ * per-team offensive shares of 3–65% (avg ~37%).
  *
  * Known gaps (minor — they barely move a per-team ratio):
- *   - ~97% of build orders arrive via NETMSG_COMMAND; the NETMSG_AICOMMAND path
+ *   - ~95% of build orders arrive via NETMSG_COMMAND; the NETMSG_AICOMMAND path
  *     (Lua-issued orders) is lightly used and its offsets are less certain.
  *   - NETMSG_AICOMMANDS (batched) is not decoded, so a few build orders are missed.
  *   - Orders on GAIA / unresolved players land on team 255 and are dropped by the
  *     caller (which only asks about the two real teams).
+ *   - unitDefIDs shift between game versions, so the offensive share is only
+ *     applied when a unit-def table within a few hundred builds exists
+ *     (see unit-defs.ts); otherwise the caller counts every unit type.
  */
 
 const MAGIC = 'spring demofile'

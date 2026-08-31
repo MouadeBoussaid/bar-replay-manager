@@ -10,10 +10,21 @@ import { parseTdf, findSection, collectIndexed } from '../src/main/tdf.ts'
 import { UNIT_DEF_TABLES } from '../src/main/data/unitDefTables.generated.ts'
 
 const path = process.argv[2]
+const infologPath = process.argv[3]
 if (!path) {
-  console.error('usage: node scripts/inspect-stream.mjs <path-to-.sdfz>')
+  console.error('usage: node scripts/inspect-stream.mjs <path-to-.sdfz> [path-to-infolog.txt]')
   process.exit(1)
 }
+
+// optional id -> unit name map, from a BRM dump in infolog.txt
+const nameById = new Map()
+if (infologPath) {
+  for (const line of readFileSync(infologPath, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/\bBRM\|(\d+)\|([^|]*)\|/)
+    if (m) nameById.set(Number(m[1]), m[2])
+  }
+}
+const nm = (id) => (nameById.get(id) ? `${id}(${nameById.get(id)})` : String(id))
 
 const raw = readFileSync(path)
 const buf = raw[0] === 0x1f && raw[1] === 0x8b ? gunzipSync(raw) : raw
@@ -123,7 +134,7 @@ console.log('  order time span', orders[0].t.toFixed(1), '->', orders[orders.len
 const perDef = new Map()
 for (const o of orders) perDef.set(o.unitDefId, (perDef.get(o.unitDefId) ?? 0) + 1)
 console.log('  top ordered ids (id:count):',
-  [...perDef.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}:${v}`).join('  '))
+  [...perDef.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${nm(k)}:${v}`).join('  '))
 
 // ---- offensive share (the actual Option C output) ----------------------
 const table = UNIT_DEF_TABLES[0]

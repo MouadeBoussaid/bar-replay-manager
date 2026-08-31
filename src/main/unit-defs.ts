@@ -8,14 +8,17 @@ export interface UnitDef {
 const cache = new Map<string, Map<number, UnitDef> | null>()
 
 /**
- * Best bundled unit-def table for a replay's `GameType` string, as a
- * `unitDefID -> { metalCost, offensive }` map. Exact version match wins; else the
- * newest table that isn't newer than the replay; else null.
+ * Bundled unit-def table for a replay's `GameType` string, as a
+ * `unitDefID -> { metalCost, offensive }` map. Exact version match, else the
+ * closest table within `MAX_BUILD_SKEW` builds, else null.
  *
- * `null` means "no offensive classification available" — callers must fall back
- * to counting every unit type. No tables are bundled until a dump is generated
- * (see src/main/data/README.md), so this returns null today.
+ * The version match matters: unitDefIDs are assigned from unit-file load order,
+ * so they shift whenever units are added/removed. Validation showed a table
+ * ~2000 builds off turns "build a mine" into "build a 70k superweapon". `null`
+ * means "no offensive classification" — callers count every unit type.
  */
+const MAX_BUILD_SKEW = 400
+
 export function loadUnitDefs(gameVersion: string): Map<number, UnitDef> | null {
   const key = gameVersion || '(none)'
   const hit = cache.get(key)
@@ -27,13 +30,37 @@ export function loadUnitDefs(gameVersion: string): Map<number, UnitDef> | null {
   return map
 }
 
+/** BAR dev builds are `... test-<N>-<hash>`; that <N> is the meaningful counter. */
+function buildNumber(v: string): number | null {
+  const m = v.match(/test-(\d+)/)
+  return m ? Number(m[1]) : null
+}
+
 function pickTable(gameVersion: string): UnitDefTable | null {
   if (UNIT_DEF_TABLES.length === 0) return null
   const exact = UNIT_DEF_TABLES.find((t) => t.gameVersion === gameVersion)
   if (exact) return exact
+
+  const want = buildNumber(gameVersion)
+  if (want != null) {
+    let best: UnitDefTable | null = null
+    let bestSkew = Infinity
+    for (const t of UNIT_DEF_TABLES) {
+      const b = buildNumber(t.gameVersion)
+      if (b == null) continue
+      const skew = Math.abs(b - want)
+      if (skew < bestSkew) {
+        best = t
+        bestSkew = skew
+      }
+    }
+    return bestSkew <= MAX_BUILD_SKEW ? best : null
+  }
+
+  // Non-dev version strings (release dates) — fall back to nearest not-newer.
   const sorted = [...UNIT_DEF_TABLES].sort((a, b) => cmpVersion(a.gameVersion, b.gameVersion))
   const notNewer = sorted.filter((t) => cmpVersion(t.gameVersion, gameVersion) <= 0)
-  return notNewer[notNewer.length - 1] ?? sorted[sorted.length - 1] ?? null
+  return notNewer[notNewer.length - 1] ?? null
 }
 
 function toMap(t: UnitDefTable): Map<number, UnitDef> {
