@@ -35,13 +35,16 @@ function widget:Initialize()
       local nWeapons = (w ~= nil) and #w or 0
       local cp = ud.customParams or {}
       local com = (cp.iscommander ~= nil) or (cp.isscavcommander ~= nil)
-      local cm = (ud.cost and ud.cost.metal) or ""
+      -- `ud.cost` is a number in this engine (older builds had a {metal,energy} table).
+      local costNum = (type(ud.cost) == "number") and ud.cost or ""
+      local costTblMetal = (type(ud.cost) == "table") and ud.cost.metal or ""
       Spring.Echo(table.concat({
         "BRM", id,
         tostring(ud.name or ""),
         "mc=" .. tostring(ud.metalCost or ""),
         "bcm=" .. tostring(ud.buildCostMetal or ""),
-        "cm=" .. tostring(cm),
+        "c=" .. tostring(costNum),
+        "ctm=" .. tostring(costTblMetal),
         "w=" .. nWeapons,
         "fac=" .. (ud.isFactory and 1 or 0),
         "bld=" .. (ud.isBuilder and 1 or 0),

@@ -54,7 +54,9 @@ function loadDump(file) {
       seen++
       const id = Number(m[1])
       const kv = Object.fromEntries(m[3].split('|').map((s) => s.split('=')))
-      const cost = num(kv.mc) || num(kv.cm) || num(kv.bcm) || 0
+      // `ud.cost` (a plain number in current engines) is the trustworthy one;
+      // `ud.metalCost` reported ~1000x for some units in the first dump.
+      const cost = num(kv.c) || num(kv.ctm) || num(kv.mc) || num(kv.bcm) || 0
       const offensive =
         num(kv.w) > 0 && kv.fac !== '1' && kv.bld !== '1' && kv.com !== '1' ? 1 : 0
       if (cost > 0) units[id] = [Math.round(cost), offensive]
