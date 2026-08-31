@@ -1,9 +1,15 @@
 import type { ComparisonRequest, ComparisonSeries, ReplayGraph } from '../shared/types'
+import { loadDemoBuffer } from './demo-header'
 import { buildReplayGraph } from './replay-graph'
 import { offensiveMetalShare } from './army-orders'
 
-/** Energy is ~20× metal in BAR; weight it to metal-equivalent for a summed economy figure. */
-const ENERGY_WEIGHT = 1 / 20
+/**
+ * Energy is ~20× metal in BAR, so weighting energy at 1/20 would make it and metal
+ * contribute about equally. We deliberately go lighter (1/60): a good player runs
+ * energy efficiently, so metal (mex) is the real economic differentiator. This puts
+ * the summed figure at roughly 75% metal / 25% energy.
+ */
+const ENERGY_WEIGHT = 1 / 60
 
 /**
  * Build the two-player series for the comparison drawer from the per-team demo
@@ -19,7 +25,15 @@ const ENERGY_WEIGHT = 1 / 20
  * all-unit-types figure. `source` records which case applied.
  */
 export function buildComparison(req: ComparisonRequest): ComparisonSeries | null {
-  const graph = buildReplayGraph(req.filePath)
+  // One read + decompress of the demo feeds both the trailer and the stream parse.
+  let buf: Buffer
+  try {
+    buf = loadDemoBuffer(req.filePath)
+  } catch {
+    return null
+  }
+
+  const graph = buildReplayGraph(req.filePath, buf)
   if (!graph || graph.times.length < 2) return null
 
   const idxOf = (name: string): number =>
@@ -32,7 +46,8 @@ export function buildComparison(req: ComparisonRequest): ComparisonSeries | null
   const offByTeam = offensiveMetalShare(
     req.filePath,
     [graph.teams[ia]!.teamId, graph.teams[ib]!.teamId],
-    graph.times
+    graph.times,
+    buf
   )
   const offA = offByTeam?.get(graph.teams[ia]!.teamId) ?? null
   const offB = offByTeam?.get(graph.teams[ib]!.teamId) ?? null
