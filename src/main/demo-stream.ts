@@ -15,9 +15,11 @@ import { collectIndexed, findSection, parseTdf } from './tdf'
  * per-team offensive shares of 3–65% (avg ~37%).
  *
  * Known gaps (minor — they barely move a per-team ratio):
- *   - ~95% of build orders arrive via NETMSG_COMMAND; the NETMSG_AICOMMAND path
- *     (Lua-issued orders) is lightly used and its offsets are less certain.
- *   - NETMSG_AICOMMANDS (batched) is not decoded, so a few build orders are missed.
+ *   - ~95% of build orders arrive via NETMSG_COMMAND. NETMSG_AICOMMAND /
+ *     _TRACKED (Lua-issued) carry the rest; their layout is source-confirmed
+ *     (commandID at byte 8; the tracked int32 sits after numParams, not before).
+ *   - NETMSG_AICOMMANDS (batched, id 15) is not decoded — its serializer isn't
+ *     in the current engine source — so a few build orders are missed.
  *   - Orders on GAIA / unresolved players land on team 255 and are dropped by the
  *     caller (which only asks about the two real teams).
  *   - unitDefIDs shift between game versions, so the offensive share is only
@@ -50,13 +52,18 @@ export interface DemoStream {
  * Walk the demo stream and collect every build order (a command whose id is
  * negative — `unitDefID = -cmdId`). NETMSG_COMMAND is attributed to the sending
  * player's team without tracking selection, which is enough for a per-team
- * ratio. Returns null when the demo has no usable stream.
+ * ratio. Returns null when the demo has no usable stream. Pass `sharedBuf` to
+ * skip the file read when the caller already has the decompressed bytes.
  */
-export function readDemoStream(path: string): DemoStream | null {
+export function readDemoStream(path: string, sharedBuf?: Buffer): DemoStream | null {
   let buf: Buffer
   try {
-    const raw = readFileSync(path)
-    buf = raw.length > 1 && raw[0] === 0x1f && raw[1] === 0x8b ? gunzipSync(raw) : raw
+    if (sharedBuf) {
+      buf = sharedBuf
+    } else {
+      const raw = readFileSync(path)
+      buf = raw.length > 1 && raw[0] === 0x1f && raw[1] === 0x8b ? gunzipSync(raw) : raw
+    }
   } catch {
     return null
   }

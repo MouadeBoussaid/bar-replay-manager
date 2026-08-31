@@ -21,11 +21,12 @@ import { loadUnitDefs } from './unit-defs'
 export function offensiveMetalShare(
   filePath: string,
   teamIds: number[],
-  sampleTimes: number[]
+  sampleTimes: number[],
+  sharedBuf?: Buffer
 ): Map<number, number[]> | null {
   if (teamIds.length === 0 || sampleTimes.length === 0) return null
 
-  const stream = readDemoStream(filePath)
+  const stream = readDemoStream(filePath, sharedBuf)
   if (!stream) return null
   const defs = loadUnitDefs(stream.gameVersion)
   if (!defs) return null
