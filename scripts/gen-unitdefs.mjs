@@ -14,6 +14,11 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const OUT = resolve(here, '../src/main/data/unitDefTables.generated.ts')
 
+const num = (s) => {
+  const n = parseFloat(s)
+  return Number.isFinite(n) ? n : 0
+}
+
 const files = process.argv.slice(2)
 if (files.length === 0) {
   console.error('usage: node scripts/gen-unitdefs.mjs <dump.json> [more.json ...]')
@@ -38,17 +43,23 @@ function loadDump(file) {
   const raw = readFileSync(file, 'utf8')
 
   if (raw.includes('#####BRM_DUMP_BEGIN#####')) {
-    const begin = raw.match(/#####BRM_DUMP_BEGIN#####\s*(.*?)\s*count=/)
+    const begin = raw.match(/#####BRM_DUMP_BEGIN#####\s*(.*)/)
     const gameVersion = (begin?.[1] ?? '').trim()
     const units = {}
+    let seen = 0
     for (const line of raw.split(/\r?\n/)) {
-      const m = line.match(/BRM ([0-9,;]+)\s*$/)
+      // [t=..][f=..] BRM|<id>|<name>|mc=<x>|bcm=<y>|cm=<z>|w=<n>|fac=<0/1>|bld=<0/1>|com=<0/1>
+      const m = line.match(/\bBRM\|(\d+)\|([^|]*)\|(.*)$/)
       if (!m) continue
-      for (const rec of m[1].split(';')) {
-        const [id, cost, off] = rec.split(',')
-        if (id !== undefined && cost !== undefined) units[Number(id)] = [Number(cost), off === '1' ? 1 : 0]
-      }
+      seen++
+      const id = Number(m[1])
+      const kv = Object.fromEntries(m[3].split('|').map((s) => s.split('=')))
+      const cost = num(kv.mc) || num(kv.cm) || num(kv.bcm) || 0
+      const offensive =
+        num(kv.w) > 0 && kv.fac !== '1' && kv.bld !== '1' && kv.com !== '1' ? 1 : 0
+      if (cost > 0) units[id] = [Math.round(cost), offensive]
     }
+    if (seen === 0) throw new Error(`no "BRM|" lines in ${file} — was infolog.txt overwritten by a later launch?`)
     return { gameVersion, units }
   }
 

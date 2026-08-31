@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { readDemoFile } from '../src/main/demo-header.ts'
 import { parseTdf, findSection, collectIndexed } from '../src/main/tdf.ts'
+import { UNIT_DEF_TABLES } from '../src/main/data/unitDefTables.generated.ts'
 
 const path = process.argv[2]
 if (!path) {
@@ -123,3 +124,35 @@ const perDef = new Map()
 for (const o of orders) perDef.set(o.unitDefId, (perDef.get(o.unitDefId) ?? 0) + 1)
 console.log('  top ordered ids (id:count):',
   [...perDef.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}:${v}`).join('  '))
+
+// ---- offensive share (the actual Option C output) ----------------------
+const table = UNIT_DEF_TABLES[0]
+if (!table) {
+  console.log('\nOFFENSIVE SHARE  no unit-def table generated — skipping')
+  process.exit(0)
+}
+const defs = new Map(Object.entries(table.units).map(([id, p]) => [Number(id), { cost: p[0], off: p[1] === 1 }]))
+console.log(`\nOFFENSIVE SHARE  using table ${JSON.stringify(table.gameVersion)} (${defs.size} units)`)
+
+let matched = 0, unmatched = 0, unmatchedIds = new Set()
+const cumOff = new Map(), cumTot = new Map()
+for (const o of orders) {
+  const d = defs.get(o.unitDefId)
+  if (!d || d.cost <= 0) { unmatched++; unmatchedIds.add(o.unitDefId); continue }
+  matched++
+  cumTot.set(o.teamId, (cumTot.get(o.teamId) ?? 0) + d.cost)
+  if (d.off) cumOff.set(o.teamId, (cumOff.get(o.teamId) ?? 0) + d.cost)
+}
+console.log(`  orders resolved ${matched} / ${matched + unmatched}  (unmatched ids: ${[...unmatchedIds].slice(0, 15).join(',')}${unmatchedIds.size > 15 ? '…' : ''})`)
+console.log('  final offensive metal share per team:')
+const shares = []
+for (const [team, tot] of [...cumTot.entries()].sort((a, b) => (a[0] ?? -1) - (b[0] ?? -1))) {
+  if (team === 255) continue
+  const s = (cumOff.get(team) ?? 0) / tot
+  shares.push(s)
+  console.log(`    t${team}: ${(s * 100).toFixed(1)}%  (offensive ${Math.round((cumOff.get(team) ?? 0) / 1000)}k / total ${Math.round(tot / 1000)}k metal)`)
+}
+const lo = Math.min(...shares), hi = Math.max(...shares), avg = shares.reduce((a, b) => a + b, 0) / shares.length
+console.log(`  range ${(lo * 100).toFixed(0)}%..${(hi * 100).toFixed(0)}%  avg ${(avg * 100).toFixed(0)}%`)
+console.log(`  SANITY: all in (0,1) -> ${shares.every((s) => s > 0 && s < 1) ? 'OK' : 'FAIL'}` +
+  ` | plausible band 20-85% -> ${lo > 0.15 && hi < 0.9 ? 'OK' : 'CHECK'}`)
