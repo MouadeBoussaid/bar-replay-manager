@@ -29,14 +29,35 @@ if (missing.length) {
   process.exit(1)
 }
 
-/** Accept either the widget's unitdefs_dump.json or a springsettings.cfg carrying the key. */
+/**
+ * Accept any of: the widget's unitdefs_dump.json, a springsettings.cfg carrying
+ * the `bar_replay_manager_unitdefs` key, or an infolog.txt with the widget's
+ * `#####BRM_DUMP_BEGIN#####` … `BRM id,cost,off;` … `#####BRM_DUMP_END#####` block.
+ */
 function loadDump(file) {
   const raw = readFileSync(file, 'utf8')
+
+  if (raw.includes('#####BRM_DUMP_BEGIN#####')) {
+    const begin = raw.match(/#####BRM_DUMP_BEGIN#####\s*(.*?)\s*count=/)
+    const gameVersion = (begin?.[1] ?? '').trim()
+    const units = {}
+    for (const line of raw.split(/\r?\n/)) {
+      const m = line.match(/BRM ([0-9,;]+)\s*$/)
+      if (!m) continue
+      for (const rec of m[1].split(';')) {
+        const [id, cost, off] = rec.split(',')
+        if (id !== undefined && cost !== undefined) units[Number(id)] = [Number(cost), off === '1' ? 1 : 0]
+      }
+    }
+    return { gameVersion, units }
+  }
+
   if (file.toLowerCase().endsWith('.cfg') || raw.includes('bar_replay_manager_unitdefs=')) {
     const m = raw.match(/^\s*bar_replay_manager_unitdefs\s*=\s*(.+)$/m)
     if (!m) throw new Error(`no "bar_replay_manager_unitdefs=" line in ${file} — did the widget run?`)
     return JSON.parse(m[1].trim())
   }
+
   return JSON.parse(raw)
 }
 
