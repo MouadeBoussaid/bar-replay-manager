@@ -9,10 +9,10 @@ const LINE_A = '#5b9cd6'
 const LINE_B = '#e2504a'
 const NEUTRAL = 'rgba(255,255,255,.4)'
 /* Energy is ~20× metal in BAR, so a raw sum is an energy chart. Weight energy well
- * below the 1/20 exchange rate (1/60) so metal dominates the figure — a good player
+ * below the 1/20 exchange rate (1/100) so metal dominates the figure — a good player
  * runs energy efficiently, making mex the real economic differentiator. Roughly
- * 75% metal / 25% energy; stated in the caption. */
-const ENERGY_WEIGHT = 1 / 60
+ * 83% metal / 17% energy; stated in the caption. */
+const ENERGY_WEIGHT = 1 / 100
 /* Enforced minimum window, in samples (~3 min at 15 s). */
 const MIN_SPAN = 12
 
@@ -224,7 +224,7 @@ export function ComparisonDrawer({ meta, perspectivePlayer, onClose }: Props): J
             >
               <ChartBlock
                 title="Economy"
-                caption="metal + energy produced, cumulative · energy weighted ×1/60 (~75% metal)"
+                caption="metal + energy produced, cumulative · energy weighted ×1/100 (~83% metal)"
                 seriesA={model.ecoA}
                 seriesB={model.ecoB}
                 fillA

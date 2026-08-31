@@ -5,11 +5,11 @@ import { offensiveMetalShare } from './army-orders'
 
 /**
  * Energy is ~20× metal in BAR, so weighting energy at 1/20 would make it and metal
- * contribute about equally. We deliberately go lighter (1/60): a good player runs
- * energy efficiently, so metal (mex) is the real economic differentiator. This puts
- * the summed figure at roughly 75% metal / 25% energy.
+ * contribute about equally. We deliberately go much lighter (1/100): a good player
+ * runs energy efficiently, so metal (mex) is the real economic differentiator. This
+ * puts the summed figure at roughly 83% metal / 17% energy.
  */
-const ENERGY_WEIGHT = 1 / 60
+const ENERGY_WEIGHT = 1 / 100
 
 /**
  * Build the two-player series for the comparison drawer from the per-team demo
